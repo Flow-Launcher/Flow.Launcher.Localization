@@ -306,7 +306,9 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             string propertyName = null
         )
         {
+            var version = typeof(LocalizeSourceGenerator).Assembly.GetName().Version;
             sb.AppendLine();
+            sb.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"LocalizeSourceGenerator\", \"{version}\")]");
             sb.AppendLine($"public static class {ClassName}");
             sb.AppendLine("{");
             foreach (var localizedString in localizedStrings)
