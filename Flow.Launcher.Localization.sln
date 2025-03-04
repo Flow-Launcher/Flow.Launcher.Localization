@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flow.Launcher.Localization.Analyzers", "Flow.Launcher.Localization.Analyzers\Flow.Launcher.Localization.Analyzers.csproj", "{C792C4B8-4FE0-40F8-8B81-CEBF9E942F8B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Flow.Launcher.Localization.SourceGenerators", "Flow.Launcher.Localization.SourceGenerators\Flow.Launcher.Localization.SourceGenerators.csproj", "{4151088A-985C-4039-92FE-27FB5D7F6AE2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C792C4B8-4FE0-40F8-8B81-CEBF9E942F8B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C792C4B8-4FE0-40F8-8B81-CEBF9E942F8B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C792C4B8-4FE0-40F8-8B81-CEBF9E942F8B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C792C4B8-4FE0-40F8-8B81-CEBF9E942F8B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4151088A-985C-4039-92FE-27FB5D7F6AE2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4151088A-985C-4039-92FE-27FB5D7F6AE2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4151088A-985C-4039-92FE-27FB5D7F6AE2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4151088A-985C-4039-92FE-27FB5D7F6AE2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
