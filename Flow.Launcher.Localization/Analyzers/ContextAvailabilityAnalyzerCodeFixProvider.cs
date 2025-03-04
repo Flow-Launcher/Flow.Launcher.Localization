@@ -2,6 +2,7 @@
 using System.Composition;
 using System.Linq;
 using System.Threading.Tasks;
+using Flow.Launcher.Localization.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -11,7 +12,7 @@ using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Flow.Launcher.Localization.Analyzers.Localize
+namespace Flow.Launcher.Localization.Analyzers
 {
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(ContextAvailabilityAnalyzerCodeFixProvider)), Shared]
     public class ContextAvailabilityAnalyzerCodeFixProvider : CodeFixProvider

@@ -1,5 +1,3 @@
 <Solution>
-  <Project Path="Flow.Launcher.Localization.Analyzers/Flow.Launcher.Localization.Analyzers.csproj" />
-  <Project Path="Flow.Launcher.Localization.SourceGenerators/Flow.Launcher.Localization.SourceGenerators.csproj" />
   <Project Path="Flow.Launcher.Localization/Flow.Launcher.Localization.csproj" />
 </Solution>

@@ -1,6 +1,6 @@
 ﻿using Microsoft.CodeAnalysis;
 
-namespace Flow.Launcher.Localization.Analyzers
+namespace Flow.Launcher.Localization.Diagnostics
 {
     public static class AnalyzerDiagnostics
     {

@@ -2,13 +2,14 @@
 using System.Composition;
 using System.Linq;
 using System.Threading.Tasks;
+using Flow.Launcher.Localization.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Flow.Launcher.Localization.Analyzers.Localize
+namespace Flow.Launcher.Localization.Analyzers
 {
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(OldGetTranslateAnalyzerCodeFixProvider)), Shared]
     public class OldGetTranslateAnalyzerCodeFixProvider : CodeFixProvider
@@ -60,7 +61,6 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             return context.Document;
         }
 
-
         private static string GetTranslationKey(ExpressionSyntax syntax)
         {
             if (
@@ -72,8 +72,8 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
         }
 
         private static Document FixOldTranslationWithoutStringFormat(
-            CodeFixContext context, string translationKey, SyntaxNode root, InvocationExpressionSyntax invocationExpr
-        ) {
+            CodeFixContext context, string translationKey, SyntaxNode root, InvocationExpressionSyntax invocationExpr)
+        {
             var newInvocationExpr = SyntaxFactory.ParseExpression(
                 $"Localize.{translationKey}()"
             );
@@ -101,14 +101,13 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             SeparatedSyntaxList<ArgumentSyntax> argumentList,
             string translationKey2,
             SyntaxNode root,
-            InvocationExpressionSyntax invocationExpr
-        ) {
+            InvocationExpressionSyntax invocationExpr)
+        {
             var newArguments = string.Join(", ", argumentList.Skip(1).Select(a => a.Expression));
             var newInnerInvocationExpr = SyntaxFactory.ParseExpression($"Localize.{translationKey2}({newArguments})");
 
             var newRoot = root.ReplaceNode(invocationExpr, newInnerInvocationExpr);
             return context.Document.WithSyntaxRoot(newRoot);
         }
-
     }
 }

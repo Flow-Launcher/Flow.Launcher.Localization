@@ -1,11 +1,12 @@
 ﻿using System.Collections.Immutable;
 using System.Linq;
+using Flow.Launcher.Localization.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace Flow.Launcher.Localization.Analyzers.Localize
+namespace Flow.Launcher.Localization.Analyzers
 {
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class OldGetTranslateAnalyzer : DiagnosticAnalyzer

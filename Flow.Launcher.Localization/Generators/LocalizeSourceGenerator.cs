@@ -4,12 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using Flow.Launcher.Localization.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Flow.Launcher.Localization.SourceGenerators.Localize
+namespace Flow.Launcher.Localization.Generators
 {
     [Generator]
     public partial class LocalizeSourceGenerator : ISourceGenerator
