@@ -50,10 +50,10 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Full nupkg
-        path: nupkgs\Flow.Launcher.Localization.*.nupkg
+        path: nupkgs/Flow.Launcher.Localization.*.nupkg
         compression-level: 0
 
     # Publish to NuGet.org
-    # - name: Publish to NuGet
-    #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'  # Only publish on push to main
-    #   run: dotnet nuget push ./nupkgs/*.nupkg --source ${{ env.NuGet_Source }} --api-key ${{ secrets.NUGET_API_KEY }}
+    - name: Push to NuGet
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'  # Only publish on push to main
+      run: dotnet nuget push nupkgs/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s ${{ env.NuGet_Source }}
