@@ -67,7 +67,7 @@ jobs:
     # Publish to GitHub releases
     - name: Publish GitHub releases
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: softprops/action-gh-release@v1.2.2
+      uses: softprops/action-gh-release@v1
       with:
         files: "nupkgs\\*.nupkg"
         tag_name: "v${{ env.release_version }}"
