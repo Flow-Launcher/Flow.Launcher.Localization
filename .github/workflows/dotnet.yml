@@ -43,7 +43,7 @@ jobs:
 
     # Pack the NuGet package
     - name: Create NuGet package
-      run: dotnet pack ${{ env.PROJECT_PATH }} --configuration Release --no-build --output nupkgs
+      run: dotnet pack ${{ env.Project_Path }} --configuration Release --no-build --output nupkgs
 
     # Upload the NuGet package
     - name: Upload NuGet package
