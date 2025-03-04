@@ -304,11 +304,11 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             Dictionary<string, LocalizableString> localizedStrings,
             string[] unusedLocalizationKeys,
             string propertyName = null
-        )
-        {
+        ) {
+            const string name = nameof(LocalizeSourceGenerator);
             var version = typeof(LocalizeSourceGenerator).Assembly.GetName().Version;
             sb.AppendLine();
-            sb.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"LocalizeSourceGenerator\", \"{version}\")]");
+            sb.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{name}\", \"{version}\")]");
             sb.AppendLine($"public static class {ClassName}");
             sb.AppendLine("{");
             foreach (var localizedString in localizedStrings)
