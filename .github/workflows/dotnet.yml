@@ -15,7 +15,6 @@ jobs:
     env:
       Dotnet_Version: 8.0.x
       Project_Path: Flow.Launcher.Localization\Flow.Launcher.Localization.csproj
-      NuGet_Source: 'https://api.nuget.org/v3/index.json'
 
     steps:
 
@@ -55,5 +54,20 @@ jobs:
 
     # Publish to NuGet.org
     - name: Push to NuGet
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'  # Only publish on push to main
-      run: dotnet nuget push nupkgs/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s ${{ env.NuGet_Source }}
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: nuget push nupkgs\*.nupkg -source 'https://api.nuget.org/v3/index.json' -apikey ${{ secrets.NUGET_API_KEY }}
+
+    # Get package version
+    - name: Get Package Version
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        $version = [system.diagnostics.fileversioninfo]::getversioninfo("bin\Release\netstandard2.0\Flow.Launcher.Localization.dll").productversion
+        echo "release_version=$version" | out-file -filepath $env:github_env -encoding utf-8 -append
+
+    # Publish to GitHub releases
+    - name: Publish GitHub releases
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: "nupkgs\\*.nupkg"
+        tag_name: "v${{ env.release_version }}"
