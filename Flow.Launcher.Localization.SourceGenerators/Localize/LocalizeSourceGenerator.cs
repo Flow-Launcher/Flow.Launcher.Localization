@@ -67,44 +67,65 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
             var compilation = context.CompilationProvider;
 
-            var combined = localizedStrings.Combine(invocationKeys).Combine(pluginClasses).Combine(compilation);
+            var combined = localizedStrings.Combine(invocationKeys).Combine(pluginClasses).Combine(compilation).Combine(xamlFiles.Collect());
 
-            context.RegisterSourceOutput(combined, (spc, data) =>
+            context.RegisterSourceOutput(combined, Execute);
+        }
+
+        /// <summary>
+        /// Executes the generation of string properties based on the provided data.
+        /// </summary>
+        /// <param name="spc">The source production context.</param>
+        /// <param name="data">The provided data.</param>
+        private void Execute(SourceProductionContext spc, 
+            ((((ImmutableArray<LocalizableString> LocalizableStrings, 
+            ImmutableHashSet<string> Strings), 
+            ImmutableArray<PluginClassInfo> PluginClassInfos), 
+            Compilation Compilation), 
+            ImmutableArray<AdditionalText> AdditionalTexts) data)
+        {
+            var xamlFiles = data.AdditionalTexts;
+            if (xamlFiles.Length == 0)
             {
-                var (Left, Right) = data;
-                var localizedStringsList = Left.Left.Left;
-                var usedKeys = Left.Left.Right;
-                var pluginClassesList = Left.Right;
-                var compilationData = Right;
+                spc.ReportDiagnostic(Diagnostic.Create(
+                    SourceGeneratorDiagnostics.CouldNotFindResourceDictionaries,
+                    Location.None
+                ));
+                return;
+            }
 
-                var assemblyName = compilationData.AssemblyName ?? DefaultNamespace;
-                var optimizationLevel = compilationData.Options.OptimizationLevel;
+            var compilationData = data.Item1.Compilation;
+            var pluginClassesList = data.Item1.Item1.PluginClassInfos;
+            var usedKeys = data.Item1.Item1.Item1.Strings;
+            var localizedStringsList = data.Item1.Item1.Item1.LocalizableStrings;
 
-                var unusedKeys = localizedStringsList
-                    .Select(ls => ls.Key)
-                    .ToImmutableHashSet()
-                    .Except(usedKeys);
+            var assemblyName = compilationData.AssemblyName ?? DefaultNamespace;
+            var optimizationLevel = compilationData.Options.OptimizationLevel;
 
-                foreach (var key in unusedKeys)
-                {
-                    spc.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.LocalizationKeyUnused,
-                        Location.None,
-                        key));
-                }
+            var unusedKeys = localizedStringsList
+                .Select(ls => ls.Key)
+                .ToImmutableHashSet()
+                .Except(usedKeys);
 
-                var pluginInfo = GetValidPluginInfo(pluginClassesList, spc);
-                var isCoreAssembly = assemblyName == CoreNamespace1 || assemblyName == CoreNamespace2;
+            foreach (var key in unusedKeys)
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(
+                    SourceGeneratorDiagnostics.LocalizationKeyUnused,
+                    Location.None,
+                    key));
+            }
 
-                GenerateSource(
-                    spc,
-                    localizedStringsList,
-                    unusedKeys,
-                    optimizationLevel,
-                    assemblyName,
-                    isCoreAssembly,
-                    pluginInfo);
-            });
+            var pluginInfo = GetValidPluginInfo(pluginClassesList, spc);
+            var isCoreAssembly = assemblyName == CoreNamespace1 || assemblyName == CoreNamespace2;
+
+            GenerateSource(
+                spc,
+                localizedStringsList,
+                unusedKeys,
+                optimizationLevel,
+                assemblyName,
+                isCoreAssembly,
+                pluginInfo);
         }
 
         #endregion
@@ -187,45 +208,91 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         private static PluginClassInfo GetPluginClassInfo(GeneratorSyntaxContext context, CancellationToken ct)
         {
             var classDecl = (ClassDeclarationSyntax)context.Node;
+            var location = GetLocation(context.SemanticModel.SyntaxTree, classDecl);
             if (!classDecl.BaseList?.Types.Any(t => t.Type.ToString() == PluginInterfaceName) ?? true)
+            {
+                // Cannot find class that implements IPluginI18n
                 return null;
+            }
 
             var property = classDecl.Members
                 .OfType<PropertyDeclarationSyntax>()
                 .FirstOrDefault(p => p.Type.ToString() == PluginContextTypeName);
-
             if (property is null)
-                return new PluginClassInfo(classDecl.Identifier.Text, null, false);
+            {
+                // Cannot find context
+                return new PluginClassInfo(location, classDecl.Identifier.Text, null, false, false, false);
+            }
 
             var modifiers = property.Modifiers;
-            var isValid = modifiers.Any(SyntaxKind.StaticKeyword) &&
-                          !modifiers.Any(SyntaxKind.PrivateKeyword) &&
-                          !modifiers.Any(SyntaxKind.ProtectedKeyword);
-
             return new PluginClassInfo(
+                location,
                 classDecl.Identifier.Text,
                 property.Identifier.Text,
-                isValid);
+                modifiers.Any(SyntaxKind.StaticKeyword),
+                modifiers.Any(SyntaxKind.PrivateKeyword),
+                modifiers.Any(SyntaxKind.ProtectedKeyword));
         }
 
         private static PluginClassInfo GetValidPluginInfo(
             ImmutableArray<PluginClassInfo> pluginClasses,
             SourceProductionContext context)
         {
+            if (pluginClasses.All(p => p is null || p.PropertyName == null))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    SourceGeneratorDiagnostics.CouldNotFindPluginEntryClass,
+                    Location.None
+                ));
+                return null;
+            }
+
             foreach (var pluginClass in pluginClasses)
             {
-                if (pluginClass?.IsValid == true)
-                    return pluginClass;
-
-                if (pluginClass.IsValid == false)
+                if (pluginClass == null || pluginClass.PropertyName is null)
                 {
-                    // TODO
-                    //context.ReportDiagnostic(Diagnostic.Create(
-                    //    SourceGeneratorDiagnostics.InvalidPluginConfiguration,
-                    //    Location.None));
+                    continue;
+                }
+
+                if (pluginClass.IsValid == true)
+                {
+                    return pluginClass;
+                }
+
+                if (!pluginClass.IsStatic)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        SourceGeneratorDiagnostics.ContextPropertyNotStatic,
+                        pluginClass.Location,
+                        pluginClass.PropertyName
+                    ));
+                }
+
+                if (pluginClass.IsPrivate)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        SourceGeneratorDiagnostics.ContextPropertyIsPrivate,
+                        pluginClass.Location,
+                        pluginClass.PropertyName
+                    ));
+                }
+
+                if (pluginClass.IsProtected)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        SourceGeneratorDiagnostics.ContextPropertyIsProtected,
+                        pluginClass.Location,
+                        pluginClass.PropertyName
+                    ));
                 }
             }
+
             return null;
+        }
+
+        private static Location GetLocation(SyntaxTree syntaxTree, CSharpSyntaxNode classDeclaration)
+        {
+            return Location.Create(syntaxTree, classDeclaration.GetLocation().SourceSpan);
         }
 
         #endregion
@@ -384,17 +451,24 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         public class PluginClassInfo
         {
+            public Location Location { get; }
             public string ClassName { get; }
             public string PropertyName { get; }
-            public bool IsValid { get; }
+            public bool IsStatic { get; }
+            public bool IsPrivate { get; }
+            public bool IsProtected { get; }
 
             public string ContextAccessor => $"{ClassName}.{PropertyName}";
+            public bool IsValid => PropertyName != null && IsStatic && (!IsPrivate) && (!IsProtected);
 
-            public PluginClassInfo(string className, string propertyName, bool isValid)
+            public PluginClassInfo(Location location, string className, string propertyName, bool isStatic, bool isPrivate, bool isProtected)
             {
+                Location = location;
                 ClassName = className;
                 PropertyName = propertyName;
-                IsValid = isValid;
+                IsStatic = isStatic;
+                IsPrivate = isPrivate;
+                IsProtected = isProtected;
             }
         }
 
