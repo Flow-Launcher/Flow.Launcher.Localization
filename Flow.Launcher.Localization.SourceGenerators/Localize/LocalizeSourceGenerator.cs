@@ -319,7 +319,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
             sourceBuilder.AppendLine($"namespace {assemblyName};");
             sourceBuilder.AppendLine();
-            sourceBuilder.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{nameof(LocalizeSourceGenerator)}\", \"1.0.0\")]");
+            sourceBuilder.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{nameof(LocalizeSourceGenerator)}\", \"0.0.1\")]");
             sourceBuilder.AppendLine($"public static class {ClassName}");
             sourceBuilder.AppendLine("{");
 
@@ -334,7 +334,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
             sourceBuilder.AppendLine("}");
 
-            context.AddSource($"{ClassName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+            context.AddSource($"{ClassName}.{assemblyName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
         }
 
         private static void GenerateDocComments(StringBuilder sb, LocalizableString ls)
