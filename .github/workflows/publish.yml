@@ -51,7 +51,7 @@ jobs:
     - name: Get Package Version
       # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
-        $version = [system.diagnostics.fileversioninfo]::getversioninfo("bin\Release\netstandard2.0\Flow.Launcher.Localization.dll").productversion
+        $version = [system.diagnostics.fileversioninfo]::getversioninfo("Flow.Launcher.Localization\bin\Release\netstandard2.0\Flow.Launcher.Localization.dll").productversion
         echo "release_version=$version" | out-file -filepath $env:github_env -encoding utf-8 -append
 
     # Publish to GitHub releases
