@@ -32,6 +32,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         private readonly Regex _languagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
 
+        private static readonly Version PackageVersion = typeof(LocalizeSourceGenerator).Assembly.GetName().Version;
+
         #endregion
 
         #region Incremental Generator
@@ -50,13 +52,14 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 .Collect()
                 .SelectMany((files, _) => files);
 
+            // TODO: Add support for usedKeys
             var invocationKeys = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     predicate: (n, _) => n is InvocationExpressionSyntax,
                     transform: GetLocalizationKeyFromInvocation)
                 .Where(key => !string.IsNullOrEmpty(key))
                 .Collect()
-                .Select((keys, _) => keys.ToImmutableHashSet());
+                .Select((keys, _) => keys.Distinct().ToImmutableHashSet());
 
             var pluginClasses = context.SyntaxProvider
                 .CreateSyntaxProvider(
@@ -79,7 +82,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         /// <param name="data">The provided data.</param>
         private void Execute(SourceProductionContext spc, 
             ((((ImmutableArray<LocalizableString> LocalizableStrings, 
-            ImmutableHashSet<string> Strings), 
+            ImmutableHashSet<string> InvocationKeys), 
             ImmutableArray<PluginClassInfo> PluginClassInfos), 
             Compilation Compilation), 
             ImmutableArray<AdditionalText> AdditionalTexts) data)
@@ -94,38 +97,26 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 return;
             }
 
-            var compilationData = data.Item1.Compilation;
-            var pluginClassesList = data.Item1.Item1.PluginClassInfos;
-            var usedKeys = data.Item1.Item1.Item1.Strings;
-            var localizedStringsList = data.Item1.Item1.Item1.LocalizableStrings;
+            var compilation = data.Item1.Compilation;
+            var pluginClasses = data.Item1.Item1.PluginClassInfos;
+            var usedKeys = data.Item1.Item1.Item1.InvocationKeys;
+            var localizedStrings = data.Item1.Item1.Item1.LocalizableStrings;
 
-            var assemblyName = compilationData.AssemblyName ?? DefaultNamespace;
-            var optimizationLevel = compilationData.Options.OptimizationLevel;
+            var assemblyName = compilation.AssemblyName ?? DefaultNamespace;
+            var optimizationLevel = compilation.Options.OptimizationLevel;
 
-            var unusedKeys = localizedStringsList
-                .Select(ls => ls.Key)
-                .ToImmutableHashSet()
-                .Except(usedKeys);
-
-            foreach (var key in unusedKeys)
-            {
-                spc.ReportDiagnostic(Diagnostic.Create(
-                    SourceGeneratorDiagnostics.LocalizationKeyUnused,
-                    Location.None,
-                    key));
-            }
-
-            var pluginInfo = GetValidPluginInfo(pluginClassesList, spc);
+            var pluginInfo = GetValidPluginInfo(pluginClasses, spc);
             var isCoreAssembly = assemblyName == CoreNamespace1 || assemblyName == CoreNamespace2;
 
             GenerateSource(
                 spc,
-                localizedStringsList,
-                unusedKeys,
+                xamlFiles[0],
+                localizedStrings,
                 optimizationLevel,
                 assemblyName,
                 isCoreAssembly,
-                pluginInfo);
+                pluginInfo,
+                usedKeys);
         }
 
         #endregion
@@ -135,23 +126,38 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         private static ImmutableArray<LocalizableString> ParseXamlFile(AdditionalText file, CancellationToken ct)
         {
             var content = file.GetText(ct)?.ToString();
-            if (content is null) return ImmutableArray<LocalizableString>.Empty;
+            if (content is null)
+            {
+                return ImmutableArray<LocalizableString>.Empty;
+            }
 
             var doc = XDocument.Parse(content);
-            var ns = doc.Root?.GetNamespaceOfPrefix(XamlPrefix);
-            if (ns is null) return ImmutableArray<LocalizableString>.Empty;
+            var systemNs = doc.Root?.GetNamespaceOfPrefix(XamlPrefix); // Should be "system"
+            var xNs = doc.Root?.GetNamespaceOfPrefix("x");
+            if (systemNs is null || xNs is null)
+            {
+                return ImmutableArray<LocalizableString>.Empty;
+            }
 
-            return doc.Descendants(ns + XamlTag)
-                .Select(element =>
+            var localizableStrings = new List<LocalizableString>();
+            foreach (var element in doc.Descendants(systemNs + XamlTag)) // "String" elements in system namespace
+            {
+                if (ct.IsCancellationRequested)
                 {
-                    var key = element.Attribute("Key")?.Value;
-                    var value = element.Value;
-                    var comment = element.PreviousNode as XComment;
+                    return ImmutableArray<LocalizableString>.Empty;
+                }
 
-                    return key is null ? null : ParseLocalizableString(key, value, comment);
-                })
-                .Where(ls => ls != null)
-                .ToImmutableArray();
+                var key = element.Attribute(xNs + "Key")?.Value; // Correctly get x:Key
+                var value = element.Value;
+                var comment = element.PreviousNode as XComment;
+
+                if (key != null)
+                {
+                    localizableStrings.Add(ParseLocalizableString(key, value, comment));
+                }
+            }
+
+            return localizableStrings.ToImmutableArray();
         }
 
         private static LocalizableString ParseLocalizableString(string key, string value, XComment comment)
@@ -163,7 +169,9 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         private static (string Summary, ImmutableArray<LocalizableStringParam> Parameters) ParseComment(XComment comment)
         {
             if (comment == null || comment.Value == null)
+            {
                 return (null, ImmutableArray<LocalizableStringParam>.Empty);
+            }
 
             try
             {
@@ -175,7 +183,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                         p.Attribute("name").Value,
                         p.Attribute("type").Value))
                     .ToImmutableArray();
-
                 return (summary, parameters);
             }
             catch
@@ -186,19 +193,47 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         #endregion
 
-        #region Get Localization Keys
+        #region Get Used Localization Keys
 
+        // TODO: Add support for usedKeys
         private static string GetLocalizationKeyFromInvocation(GeneratorSyntaxContext context, CancellationToken ct)
         {
-            var invocation = (InvocationExpressionSyntax)context.Node;
-            if (invocation.Expression is MemberAccessExpressionSyntax memberAccess)
+            if (ct.IsCancellationRequested)
             {
-                if (memberAccess.Expression is IdentifierNameSyntax identifierName && identifierName.Identifier.Text == ClassName)
-                {
-                    return memberAccess.Name.Identifier.Text;
-                }
+                return null;
             }
-            return null;
+
+            var invocation = (InvocationExpressionSyntax)context.Node;
+            var expression = invocation.Expression;
+            var parts = new List<string>();
+
+            // Traverse the member access hierarchy
+            while (expression is MemberAccessExpressionSyntax memberAccess)
+            {
+                parts.Add(memberAccess.Name.Identifier.Text);
+                expression = memberAccess.Expression;
+            }
+
+            // Add the leftmost identifier
+            if (expression is IdentifierNameSyntax identifier)
+            {
+                parts.Add(identifier.Identifier.Text);
+            }
+            else
+            {
+                return null;
+            }
+
+            // Reverse to get [ClassName, SubClass, Method] from [Method, SubClass, ClassName]
+            parts.Reverse();
+
+            // Check if the first part is ClassName and there's at least one more part
+            if (parts.Count < 2 || parts[0] != ClassName)
+            {
+                return null;
+            }
+
+            return parts[1];
         }
 
         #endregion
@@ -300,66 +335,147 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         #region Generate Source
 
         private static void GenerateSource(
-            SourceProductionContext context,
+            SourceProductionContext spc,
+            AdditionalText xamlFile,
             ImmutableArray<LocalizableString> localizedStrings,
-            IEnumerable<string> unusedKeys,
             OptimizationLevel optimizationLevel,
             string assemblyName,
             bool isCoreAssembly,
-            PluginClassInfo pluginInfo)
+            PluginClassInfo pluginInfo,
+            IEnumerable<string> usedKeys)
         {
-            var sourceBuilder = new StringBuilder();
-            sourceBuilder.AppendLine("// <auto-generated />");
-            sourceBuilder.AppendLine("#nullable enable");
+            // Get unusedKeys if we need to optimize
+            IEnumerable<string> unusedKeys = new List<string>();
+            if (optimizationLevel == OptimizationLevel.Release)
+            {
+                unusedKeys = localizedStrings
+                    .Select(ls => ls.Key)
+                    .ToImmutableHashSet()
+                    .Except(usedKeys);
 
+                foreach (var key in unusedKeys)
+                {
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        SourceGeneratorDiagnostics.LocalizationKeyUnused,
+                        Location.None,
+                        key));
+                }
+            }
+
+            var sourceBuilder = new StringBuilder();
+
+            // Generate header
+            GeneratedHeaderFromPath(sourceBuilder, xamlFile.Path);
+            sourceBuilder.AppendLine();
+
+            // Generate usings
             if (isCoreAssembly)
             {
                 sourceBuilder.AppendLine("using Flow.Launcher.Core.Resource;");
+                sourceBuilder.AppendLine();
             }
 
+            // Generate nullable enable
+            sourceBuilder.AppendLine("#nullable enable");
+            sourceBuilder.AppendLine();
+
+            // Generate namespace
             sourceBuilder.AppendLine($"namespace {assemblyName};");
             sourceBuilder.AppendLine();
-            sourceBuilder.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{nameof(LocalizeSourceGenerator)}\", \"0.0.1\")]");
+
+            // Uncomment them for debugging
+            //sourceBuilder.AppendLine("/*");
+            /*// Generate all localization strings
+            sourceBuilder.AppendLine("localizedStrings");
+            foreach (var ls in localizedStrings)
+            {
+                sourceBuilder.AppendLine($"{ls.Key} - {ls.Value}");
+            }
+            sourceBuilder.AppendLine();
+
+            // Generate all unused keys
+            sourceBuilder.AppendLine("unusedKeys");
+            foreach (var key in unusedKeys)
+            {
+                sourceBuilder.AppendLine($"{key}");
+            }
+            sourceBuilder.AppendLine();
+
+            // Generate all used keys
+            sourceBuilder.AppendLine("usedKeys");
+            foreach (var key in usedKeys)
+            {
+                sourceBuilder.AppendLine($"{key}");
+            }*/
+            //sourceBuilder.AppendLine("*/");
+
+            // Generate class
+            sourceBuilder.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{nameof(LocalizeSourceGenerator)}\", \"{PackageVersion}\")]");
             sourceBuilder.AppendLine($"public static class {ClassName}");
             sourceBuilder.AppendLine("{");
 
+            // Generate localization methods
+            var tabString = Spacing(1);
             foreach (var ls in localizedStrings)
             {
-                if (optimizationLevel == OptimizationLevel.Release && unusedKeys.Contains(ls.Key))
+                // TODO: Add support for usedKeys
+                /*if (unusedKeys.Contains(ls.Key))
+                {
                     continue;
+                }*/
 
-                GenerateDocComments(sourceBuilder, ls);
-                GenerateLocalizationMethod(sourceBuilder, ls, isCoreAssembly, pluginInfo);
+                GenerateDocComments(sourceBuilder, ls, tabString);
+                GenerateLocalizationMethod(sourceBuilder, ls, isCoreAssembly, pluginInfo, tabString);
             }
 
             sourceBuilder.AppendLine("}");
 
-            context.AddSource($"{ClassName}.{assemblyName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+            // Add source to context
+            spc.AddSource($"{ClassName}.{assemblyName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
         }
 
-        private static void GenerateDocComments(StringBuilder sb, LocalizableString ls)
+        private static void GeneratedHeaderFromPath(StringBuilder sb, string xamlFilePath)
+        {
+            if (string.IsNullOrEmpty(xamlFilePath))
+            {
+                sb.AppendLine("/// <auto-generated/>");
+            }
+            else
+            {
+                sb.AppendLine("/// <auto-generated>")
+                    .AppendLine($"/// From: {xamlFilePath}")
+                    .AppendLine("/// </auto-generated>");
+            }
+        }
+
+        private static void GenerateDocComments(StringBuilder sb, LocalizableString ls, string tabString)
         {
             if (ls.Summary != null)
             {
-                sb.AppendLine("/// <summary>");
+                sb.AppendLine($"{tabString}/// <summary>");
                 foreach (var line in ls.Summary.Split('\n'))
-                    sb.AppendLine($"/// {line.Trim()}");
-                sb.AppendLine("/// </summary>");
+                {
+                    sb.AppendLine($"{tabString}/// {line.Trim()}");
+                }
+                sb.AppendLine($"{tabString}/// </summary>");
             }
 
-            sb.AppendLine("/// <code>");
+            sb.AppendLine($"{tabString}/// <code>");
             foreach (var line in ls.Value.Split('\n'))
-                sb.AppendLine($"/// {line.Trim()}");
-            sb.AppendLine("/// </code>");
+            {
+                sb.AppendLine($"{tabString}/// {line.Trim()}");
+            }
+            sb.AppendLine($"{tabString}/// </code>");
         }
 
         private static void GenerateLocalizationMethod(
             StringBuilder sb,
             LocalizableString ls,
             bool isCoreAssembly,
-            PluginClassInfo pluginInfo)
+            PluginClassInfo pluginInfo,
+            string tabString)
         {
-            sb.Append($"public static string {ls.Key}(");
+            sb.Append($"{tabString}public static string {ls.Key}(");
             var parameters = BuildParameters(ls);
             sb.Append(string.Join(", ", parameters.Select(p => $"{p.Type} {p.Name}")));
             sb.Append(") => ");
@@ -393,7 +509,10 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var parameters = new List<MethodParameter>();
             for (var i = 0; i < 10; i++)
             {
-                if (!ls.Value.Contains($"{{{i}}}")) continue;
+                if (!ls.Value.Contains($"{{{i}}}"))
+                {
+                    continue;
+                }
 
                 var param = ls.Params.FirstOrDefault(p => p.Index == i);
                 parameters.Add(param is null
@@ -401,6 +520,20 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                     : new MethodParameter(param.Name, param.Type));
             }
             return parameters;
+        }
+
+        private static string Spacing(int n)
+        {
+            Span<char> spaces = stackalloc char[n * 4];
+            spaces.Fill(' ');
+
+            var sb = new StringBuilder(n * 4);
+            foreach (var c in spaces)
+            {
+                _ = sb.Append(c);
+            }
+
+            return sb.ToString();
         }
 
         #endregion
