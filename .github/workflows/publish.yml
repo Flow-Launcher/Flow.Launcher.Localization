@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - '*'
     tags:
       - '*'
 
@@ -51,6 +51,7 @@ jobs:
     - name: Get Package Version
       # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
+        pwd
         $version = [system.diagnostics.fileversioninfo]::getversioninfo("Flow.Launcher.Localization\bin\Release\netstandard2.0\Flow.Launcher.Localization.dll").productversion
         echo "release_version=$version" | out-file -filepath $env:github_env -encoding utf-8 -append
 
