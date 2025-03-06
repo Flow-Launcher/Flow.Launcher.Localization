@@ -42,8 +42,9 @@ jobs:
     - name: Create NuGet package
       run: |
         pwd
-        dir .\\nupkgs\
+        ls .
         dotnet pack ${{ env.Project_Path }} --configuration Release --no-build --output nupkgs
+        dir .\\nupkgs\
 
     # # Publish to NuGet.org
     # - name: Push to NuGet
