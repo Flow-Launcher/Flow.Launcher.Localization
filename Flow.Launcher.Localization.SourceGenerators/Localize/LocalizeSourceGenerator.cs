@@ -273,7 +273,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             ImmutableArray<PluginClassInfo> pluginClasses,
             SourceProductionContext context)
         {
-            if (pluginClasses.All(p => p is null || p.PropertyName == null))
+            var nonNullExistClasses = pluginClasses.Where(p => p != null || p.PropertyName == null).ToArray();
+            if (nonNullExistClasses.Length == 0)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     SourceGeneratorDiagnostics.CouldNotFindPluginEntryClass,
@@ -282,13 +283,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 return null;
             }
 
-            foreach (var pluginClass in pluginClasses)
+            foreach (var pluginClass in nonNullExistClasses)
             {
-                if (pluginClass == null || pluginClass.PropertyName is null)
-                {
-                    continue;
-                }
-
                 if (pluginClass.IsValid == true)
                 {
                     return pluginClass;
@@ -330,7 +326,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             return Location.Create(syntaxTree, classDeclaration.GetLocation().SourceSpan);
         }
 
-        #endregion
+#endregion
 
         #region Generate Source
 
