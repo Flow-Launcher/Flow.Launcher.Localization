@@ -273,7 +273,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             ImmutableArray<PluginClassInfo> pluginClasses,
             SourceProductionContext context)
         {
-            var nonNullExistClasses = pluginClasses.Where(p => p != null && p.PropertyName == null).ToArray();
+            var nonNullExistClasses = pluginClasses.Where(p => p != null && p.PropertyName != null).ToArray();
             if (nonNullExistClasses.Length == 0)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
