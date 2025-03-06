@@ -42,7 +42,7 @@ jobs:
     - name: Create NuGet package
       run: |
         pwd
-        dir
+        dir .\\nupkgs\
         dotnet pack ${{ env.Project_Path }} --configuration Release --no-build --output nupkgs
 
     # # Publish to NuGet.org
@@ -63,5 +63,5 @@ jobs:
       # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: softprops/action-gh-release@v1
       with:
-        files: "nupkgs\\*.nupkg"
+        files: ".\\nupkgs\\*.nupkg"
         tag_name: "v${{ env.release_version }}"
