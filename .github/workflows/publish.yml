@@ -3,8 +3,6 @@ name: publish
 on:
   workflow_dispatch:
   push:
-    branches:
-      - '*'
     tags:
       - '*'
 
@@ -41,9 +39,7 @@ jobs:
     # Pack the NuGet package
     - name: Create NuGet package
       run: |
-        Get-ChildItem -Path .\
         dotnet pack ${{ env.Project_Path }} --configuration Release --no-build --output nupkgs
-        Get-ChildItem -Path .\nupkgs\
 
     # # Publish to NuGet.org
     # - name: Push to NuGet
@@ -54,7 +50,6 @@ jobs:
     - name: Get Package Version
       # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       run: |
-        pwd
         $version = [system.diagnostics.fileversioninfo]::getversioninfo("Flow.Launcher.Localization\bin\Release\netstandard2.0\Flow.Launcher.Localization.dll").productversion
         echo "release_version=$version" | out-file -filepath $env:github_env -encoding utf-8 -append
 
