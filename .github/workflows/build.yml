@@ -27,6 +27,7 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.Dotnet_Version }}
+        cache: true
 
     # Restore dependencies
     - name: Restore dependencies
