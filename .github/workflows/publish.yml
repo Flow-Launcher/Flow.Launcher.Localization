@@ -63,5 +63,5 @@ jobs:
       # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: softprops/action-gh-release@v1
       with:
-        files: "D:\\a\\Flow.Launcher.Localization\\Flow.Launcher.Localization\nupkgs\\Flow.Launcher.Localization.0.0.1.nupkg"
+        files: "nupkgs/*.nupkg"
         tag_name: "v${{ env.release_version }}"
