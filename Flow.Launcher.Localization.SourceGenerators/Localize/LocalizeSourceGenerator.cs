@@ -464,11 +464,12 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             if (lines.Length > 0)
             {
                 sb.AppendLine($"{tabString}/// <remarks>");
-                sb.AppendLine($"{tabString}/// e.g.:");
+                sb.AppendLine($"{tabString}/// e.g.: <code>");
                 foreach (var line in lines)
                 {
                     sb.AppendLine($"{tabString}/// {line.Trim()}");
                 }
+                sb.AppendLine($"{tabString}/// </code>");
                 sb.AppendLine($"{tabString}/// </remarks>");
             }
         }
