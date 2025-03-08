@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -11,10 +13,13 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace Flow.Launcher.Localization.SourceGenerators.Localize
 {
+    /// <summary>
+	/// Generates properties for strings based on resource files.
+	/// </summary>
     [Generator]
-    public partial class LocalizeSourceGenerator : ISourceGenerator
+    public partial class LocalizeSourceGenerator : IIncrementalGenerator
     {
-        private OptimizationLevel _optimizationLevel;
+        #region Fields
 
         private const string CoreNamespace1 = "Flow.Launcher";
         private const string CoreNamespace2 = "Flow.Launcher.Core";
@@ -22,395 +27,298 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         private const string ClassName = "Localize";
         private const string PluginInterfaceName = "IPluginI18n";
         private const string PluginContextTypeName = "PluginInitContext";
-        private const string KeywordStatic = "static";
-        private const string KeywordPrivate = "private";
-        private const string KeywordProtected = "protected";
         private const string XamlPrefix = "system";
         private const string XamlTag = "String";
 
-        private const string DefaultLanguageFilePathEndsWith = @"\Languages\en.xaml";
-        private const string XamlCustomPathPropertyKey = "build_property.localizegeneratorlangfiles";
-        private readonly char[] _xamlCustomPathPropertyDelimiters = { '\n', ';' };
         private readonly Regex _languagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
 
-        public void Initialize(GeneratorInitializationContext context)
+        private static readonly Version PackageVersion = typeof(LocalizeSourceGenerator).Assembly.GetName().Version;
+
+        #endregion
+
+        #region Incremental Generator
+
+        /// <summary>
+        /// Initializes the generator and registers source output based on resource files.
+        /// </summary>
+        /// <param name="context">The initialization context.</param>
+        public void Initialize(IncrementalGeneratorInitializationContext context)
         {
+            var xamlFiles = context.AdditionalTextsProvider
+                .Where(file => _languagesXamlRegex.IsMatch(file.Path));
+
+            var localizedStrings = xamlFiles
+                .Select((file, ct) => ParseXamlFile(file, ct))
+                .Collect()
+                .SelectMany((files, _) => files);
+
+            // TODO: Add support for usedKeys
+            var invocationKeys = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    predicate: (n, _) => n is InvocationExpressionSyntax,
+                    transform: GetLocalizationKeyFromInvocation)
+                .Where(key => !string.IsNullOrEmpty(key))
+                .Collect()
+                .Select((keys, _) => keys.Distinct().ToImmutableHashSet());
+
+            var pluginClasses = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    predicate: (n, _) => n is ClassDeclarationSyntax,
+                    transform: GetPluginClassInfo)
+                .Where(info => info != null)
+                .Collect();
+
+            var compilation = context.CompilationProvider;
+
+            var combined = localizedStrings.Combine(invocationKeys).Combine(pluginClasses).Combine(compilation).Combine(xamlFiles.Collect());
+
+            context.RegisterSourceOutput(combined, Execute);
         }
 
-        public void Execute(GeneratorExecutionContext context)
+        /// <summary>
+        /// Executes the generation of string properties based on the provided data.
+        /// </summary>
+        /// <param name="spc">The source production context.</param>
+        /// <param name="data">The provided data.</param>
+        private void Execute(SourceProductionContext spc, 
+            ((((ImmutableArray<LocalizableString> LocalizableStrings, 
+            ImmutableHashSet<string> InvocationKeys), 
+            ImmutableArray<PluginClassInfo> PluginClassInfos), 
+            Compilation Compilation), 
+            ImmutableArray<AdditionalText> AdditionalTexts) data)
         {
-            _optimizationLevel = context.Compilation.Options.OptimizationLevel;
-
-            context.AnalyzerConfigOptions.GlobalOptions.TryGetValue(
-                XamlCustomPathPropertyKey,
-                out var langFilePathEndsWithStr
-            );
-
-            var allLanguageKeys = new List<string>();
-            context.Compilation.SyntaxTrees
-                .SelectMany(v => v.GetRoot().DescendantNodes().OfType<InvocationExpressionSyntax>())
-                .ToList()
-                .ForEach(
-                    v =>
-                    {
-                        var split = v.Expression.ToString().Split('.');
-                        if (split.Length < 2) return;
-                        if (split[0] != ClassName) return;
-                        allLanguageKeys.Add(split[1]);
-                    });
-
-            var allXamlFiles = context.AdditionalFiles
-                .Where(v => _languagesXamlRegex.IsMatch(v.Path))
-                .ToArray();
-            AdditionalText[] resourceDictionaries;
-            if (allXamlFiles.Length is 0)
+            var xamlFiles = data.AdditionalTexts;
+            if (xamlFiles.Length == 0)
             {
-                context.ReportDiagnostic(Diagnostic.Create(
+                spc.ReportDiagnostic(Diagnostic.Create(
                     SourceGeneratorDiagnostics.CouldNotFindResourceDictionaries,
                     Location.None
                 ));
                 return;
             }
 
-            if (string.IsNullOrEmpty(langFilePathEndsWithStr))
+            var compilation = data.Item1.Compilation;
+            var pluginClasses = data.Item1.Item1.PluginClassInfos;
+            var usedKeys = data.Item1.Item1.Item1.InvocationKeys;
+            var localizedStrings = data.Item1.Item1.Item1.LocalizableStrings;
+
+            var assemblyName = compilation.AssemblyName ?? DefaultNamespace;
+            var optimizationLevel = compilation.Options.OptimizationLevel;
+
+            var pluginInfo = GetValidPluginInfo(pluginClasses, spc);
+            var isCoreAssembly = assemblyName == CoreNamespace1 || assemblyName == CoreNamespace2;
+
+            GenerateSource(
+                spc,
+                xamlFiles[0],
+                localizedStrings,
+                optimizationLevel,
+                assemblyName,
+                isCoreAssembly,
+                pluginInfo,
+                usedKeys);
+        }
+
+        #endregion
+
+        #region Parse Xaml File
+
+        private static ImmutableArray<LocalizableString> ParseXamlFile(AdditionalText file, CancellationToken ct)
+        {
+            var content = file.GetText(ct)?.ToString();
+            if (content is null)
             {
-                if (allXamlFiles.Length is 1)
+                return ImmutableArray<LocalizableString>.Empty;
+            }
+
+            var doc = XDocument.Parse(content);
+            var systemNs = doc.Root?.GetNamespaceOfPrefix(XamlPrefix); // Should be "system"
+            var xNs = doc.Root?.GetNamespaceOfPrefix("x");
+            if (systemNs is null || xNs is null)
+            {
+                return ImmutableArray<LocalizableString>.Empty;
+            }
+
+            var localizableStrings = new List<LocalizableString>();
+            foreach (var element in doc.Descendants(systemNs + XamlTag)) // "String" elements in system namespace
+            {
+                if (ct.IsCancellationRequested)
                 {
-                    resourceDictionaries = allXamlFiles;
+                    return ImmutableArray<LocalizableString>.Empty;
                 }
-                else
+
+                var key = element.Attribute(xNs + "Key")?.Value; // Correctly get x:Key
+                var value = element.Value;
+                var comment = element.PreviousNode as XComment;
+
+                if (key != null)
                 {
-                    resourceDictionaries = allXamlFiles.Where(v => v.Path.EndsWith(DefaultLanguageFilePathEndsWith)).ToArray();
-                    if (resourceDictionaries.Length is 0)
-                    {
-                        context.ReportDiagnostic(Diagnostic.Create(
-                            SourceGeneratorDiagnostics.CouldNotFindResourceDictionaries,
-                            Location.None
-                        ));
-                        return;
-                    }
+                    localizableStrings.Add(ParseLocalizableString(key, value, comment));
                 }
+            }
+
+            return localizableStrings.ToImmutableArray();
+        }
+
+        private static LocalizableString ParseLocalizableString(string key, string value, XComment comment)
+        {
+            var (summary, parameters) = ParseComment(comment);
+            return new LocalizableString(key, value, summary, parameters);
+        }
+
+        private static (string Summary, ImmutableArray<LocalizableStringParam> Parameters) ParseComment(XComment comment)
+        {
+            if (comment == null || comment.Value == null)
+            {
+                return (null, ImmutableArray<LocalizableStringParam>.Empty);
+            }
+
+            try
+            {
+                var doc = XDocument.Parse($"<root>{comment.Value}</root>");
+                var summary = doc.Descendants("summary").FirstOrDefault()?.Value.Trim();
+                var parameters = doc.Descendants("param")
+                    .Select(p => new LocalizableStringParam(
+                        int.Parse(p.Attribute("index").Value),
+                        p.Attribute("name").Value,
+                        p.Attribute("type").Value))
+                    .ToImmutableArray();
+                return (summary, parameters);
+            }
+            catch
+            {
+                return (null, ImmutableArray<LocalizableStringParam>.Empty);
+            }
+        }
+
+        #endregion
+
+        #region Get Used Localization Keys
+
+        // TODO: Add support for usedKeys
+        private static string GetLocalizationKeyFromInvocation(GeneratorSyntaxContext context, CancellationToken ct)
+        {
+            if (ct.IsCancellationRequested)
+            {
+                return null;
+            }
+
+            var invocation = (InvocationExpressionSyntax)context.Node;
+            var expression = invocation.Expression;
+            var parts = new List<string>();
+
+            // Traverse the member access hierarchy
+            while (expression is MemberAccessExpressionSyntax memberAccess)
+            {
+                parts.Add(memberAccess.Name.Identifier.Text);
+                expression = memberAccess.Expression;
+            }
+
+            // Add the leftmost identifier
+            if (expression is IdentifierNameSyntax identifier)
+            {
+                parts.Add(identifier.Identifier.Text);
             }
             else
             {
-                var langFilePathEndings = langFilePathEndsWithStr
-                    .Trim()
-                    .Split(_xamlCustomPathPropertyDelimiters)
-                    .Select(v => v.Trim())
-                    .ToArray();
-                resourceDictionaries = allXamlFiles.Where(v => langFilePathEndings.Any(v.Path.EndsWith)).ToArray();
-                if (resourceDictionaries.Length is 0)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.CouldNotFindResourceDictionaries,
-                        Location.None
-                    ));
-                    return;
-                }
+                return null;
             }
 
-            var ns = context.Compilation.AssemblyName ?? DefaultNamespace;
+            // Reverse to get [ClassName, SubClass, Method] from [Method, SubClass, ClassName]
+            parts.Reverse();
 
-            var localizedStrings = LoadLocalizedStrings(resourceDictionaries);
+            // Check if the first part is ClassName and there's at least one more part
+            if (parts.Count < 2 || parts[0] != ClassName)
+            {
+                return null;
+            }
 
-            var unusedLocalizationKeys = localizedStrings.Keys.Except(allLanguageKeys).ToArray();
-
-            foreach (var key in unusedLocalizationKeys)
-                context.ReportDiagnostic(Diagnostic.Create(
-                    SourceGeneratorDiagnostics.LocalizationKeyUnused,
-                    Location.None,
-                    key
-                ));
-
-            var sourceCode = GenerateSourceCode(localizedStrings, context, unusedLocalizationKeys);
-
-            context.AddSource($"{ClassName}.{ns}.g.cs", SourceText.From(sourceCode, Encoding.UTF8));
+            return parts[1];
         }
 
-        private static Dictionary<string, LocalizableString> LoadLocalizedStrings(AdditionalText[] files)
+        #endregion
+
+        #region Get Plugin Class Info
+
+        private static PluginClassInfo GetPluginClassInfo(GeneratorSyntaxContext context, CancellationToken ct)
         {
-            var result = new Dictionary<string, LocalizableString>();
-
-            foreach (var file in files)
+            var classDecl = (ClassDeclarationSyntax)context.Node;
+            var location = GetLocation(context.SemanticModel.SyntaxTree, classDecl);
+            if (!classDecl.BaseList?.Types.Any(t => t.Type.ToString() == PluginInterfaceName) ?? true)
             {
-                ProcessXamlFile(file, result);
+                // Cannot find class that implements IPluginI18n
+                return null;
             }
 
-            return result;
-        }
-
-        private static void ProcessXamlFile(AdditionalText file, Dictionary<string, LocalizableString> result) {
-            var content = file.GetText()?.ToString();
-            if (content is null) return;
-            var doc = XDocument.Parse(content);
-            var ns = doc.Root?.GetNamespaceOfPrefix(XamlPrefix);
-            if (ns is null) return;
-            foreach (var element in doc.Descendants(ns + XamlTag))
+            var property = classDecl.Members
+                .OfType<PropertyDeclarationSyntax>()
+                .FirstOrDefault(p => p.Type.ToString() == PluginContextTypeName);
+            if (property is null)
             {
-                var name = element.FirstAttribute?.Value;
-                var value = element.Value;
-
-                if (name is null) continue;
-
-                string summary = null;
-                var paramsList = new List<LocalizableStringParam>();
-                var commentNode = element.PreviousNode;
-
-                if (commentNode is XComment comment)
-                    summary = ProcessXamlFileComment(comment, paramsList);
-
-                result[name] = new LocalizableString(name, value, summary, paramsList);
-            }
-        }
-
-        private static string ProcessXamlFileComment(XComment comment, List<LocalizableStringParam> paramsList) {
-            string summary = null;
-            try
-            {
-                if (CommentIncludesDocumentationMarkup(comment))
-                {
-                    var commentDoc = XDocument.Parse($"<root>{comment.Value}</root>");
-                    summary = ExtractDocumentationCommentSummary(commentDoc);
-                    foreach (var param in commentDoc.Descendants("param"))
-                    {
-                        if (!int.TryParse(param.Attribute("index")?.Value, out var index))
-                        {
-                            index = -1;
-                        }
-                        var paramName = param.Attribute("name")?.Value;
-                        var paramType = param.Attribute("type")?.Value;
-                        if (index < 0 || paramName is null || paramType is null) continue;
-                        paramsList.Add(new LocalizableStringParam(index, paramName, paramType));
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                // ignore
-                Console.WriteLine($"Exception in ProcessXamlFileComment: {ex.Message}");
+                // Cannot find context
+                return new PluginClassInfo(location, classDecl.Identifier.Text, null, false, false, false);
             }
 
-            return summary;
+            var modifiers = property.Modifiers;
+            return new PluginClassInfo(
+                location,
+                classDecl.Identifier.Text,
+                property.Identifier.Text,
+                modifiers.Any(SyntaxKind.StaticKeyword),
+                modifiers.Any(SyntaxKind.PrivateKeyword),
+                modifiers.Any(SyntaxKind.ProtectedKeyword));
         }
 
-        private static string ExtractDocumentationCommentSummary(XDocument commentDoc) {
-            return commentDoc.Descendants("summary").FirstOrDefault()?.Value.Trim();
-        }
-
-        private static bool CommentIncludesDocumentationMarkup(XComment comment) {
-            return comment.Value.Contains("<summary>") || comment.Value.Contains("<param ");
-        }
-
-        private string GenerateSourceCode(
-            Dictionary<string, LocalizableString> localizedStrings,
-            GeneratorExecutionContext context,
-            string[] unusedLocalizationKeys
-        )
+        private static PluginClassInfo GetValidPluginInfo(
+            ImmutableArray<PluginClassInfo> pluginClasses,
+            SourceProductionContext context)
         {
-            var ns = context.Compilation.AssemblyName;
-
-            var sb = new StringBuilder();
-            if (ns is CoreNamespace1 || ns is CoreNamespace2)
-            {
-                GenerateFileHeader(sb, context);
-                GenerateClass(sb, localizedStrings, unusedLocalizationKeys);
-                return sb.ToString();
-            }
-
-            string contextPropertyName = null;
-            var mainClassFound = false;
-            foreach (var (syntaxTree, classDeclaration) in GetClasses(context))
-            {
-                if (!DoesClassImplementInterface(classDeclaration, PluginInterfaceName))
-                    continue;
-
-                mainClassFound = true;
-
-                var property = GetPluginContextProperty(classDeclaration);
-                if (property is null)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.CouldNotFindContextProperty,
-                        GetLocation(syntaxTree, classDeclaration),
-                        classDeclaration.Identifier
-                    ));
-                    return string.Empty;
-                }
-
-                var propertyModifiers = GetPropertyModifiers(property);
-
-                if (!propertyModifiers.Static)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.ContextPropertyNotStatic,
-                        GetLocation(syntaxTree, property),
-                        property.Identifier
-                    ));
-                    return string.Empty;
-                }
-
-                if (propertyModifiers.Private)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.ContextPropertyIsPrivate,
-                        GetLocation(syntaxTree, property),
-                        property.Identifier
-                    ));
-                    return string.Empty;
-                }
-
-                if (propertyModifiers.Protected)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.ContextPropertyIsProtected,
-                        GetLocation(syntaxTree, property),
-                        property.Identifier
-                    ));
-                    return string.Empty;
-                }
-
-                contextPropertyName = $"{classDeclaration.Identifier}.{property.Identifier}";
-                break;
-            }
-
-            if (mainClassFound is false)
+            var nonNullExistClasses = pluginClasses.Where(p => p != null && p.PropertyName != null).ToArray();
+            if (nonNullExistClasses.Length == 0)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     SourceGeneratorDiagnostics.CouldNotFindPluginEntryClass,
                     Location.None
                 ));
-                return string.Empty;
+                return null;
             }
 
-            GenerateFileHeader(sb, context, true);
-            GenerateClass(sb, localizedStrings, unusedLocalizationKeys, contextPropertyName);
-            return sb.ToString();
-        }
-
-        private static void GenerateFileHeader(StringBuilder sb, GeneratorExecutionContext context, bool isPlugin = false)
-        {
-            var rootNamespace = context.Compilation.AssemblyName;
-            sb.AppendLine("// <auto-generated />");
-            sb.AppendLine("#nullable enable");
-
-            if (!isPlugin)
-                sb.AppendLine("using Flow.Launcher.Core.Resource;");
-
-            sb.AppendLine($"namespace {rootNamespace};");
-        }
-
-        private void GenerateClass(
-            StringBuilder sb,
-            Dictionary<string, LocalizableString> localizedStrings,
-            string[] unusedLocalizationKeys,
-            string propertyName = null
-        ) {
-            const string name = nameof(LocalizeSourceGenerator);
-            var version = typeof(LocalizeSourceGenerator).Assembly.GetName().Version;
-            sb.AppendLine();
-            sb.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{name}\", \"{version}\")]");
-            sb.AppendLine($"public static class {ClassName}");
-            sb.AppendLine("{");
-            foreach (var localizedString in localizedStrings)
+            foreach (var pluginClass in nonNullExistClasses)
             {
-                if (_optimizationLevel == OptimizationLevel.Release && unusedLocalizationKeys.Contains(localizedString.Key))
-                    continue;
-
-                GenerateDocCommentForMethod(sb, localizedString.Value);
-                GenerateMethod(sb, localizedString.Value, propertyName);
-            }
-
-            sb.AppendLine("}");
-        }
-
-        private static void GenerateDocCommentForMethod(StringBuilder sb, LocalizableString localizableString)
-        {
-            sb.AppendLine("/// <summary>");
-            if (!(localizableString.Summary is null))
-            {
-                sb.AppendLine(string.Join("\n", localizableString.Summary.Trim().Split('\n').Select(v => $"/// {v}")));
-            }
-
-            sb.AppendLine("/// <code>");
-            var value = localizableString.Value;
-            foreach (var p in localizableString.Params)
-            {
-                value = value.Replace($"{{{p.Index}}}", $"{{{p.Name}}}");
-            }
-            sb.AppendLine(string.Join("\n", value.Split('\n').Select(v => $"/// {v}")));
-            sb.AppendLine("/// </code>");
-            sb.AppendLine("/// </summary>");
-        }
-
-        private static void GenerateMethod(StringBuilder sb, LocalizableString localizableString, string contextPropertyName)
-        {
-            sb.Append($"public static string {localizableString.Key}(");
-            var declarationArgs = new List<string>();
-            var callArgs = new List<string>();
-            for (var i = 0; i < 10; i++)
-            {
-                if (localizableString.Value.Contains($"{{{i}}}"))
+                if (pluginClass.IsValid == true)
                 {
-                    var param = localizableString.Params.FirstOrDefault(v => v.Index == i);
-                    if (!(param is null))
-                    {
-                        declarationArgs.Add($"{param.Type} {param.Name}");
-                        callArgs.Add(param.Name);
-                    }
-                    else
-                    {
-                        declarationArgs.Add($"object? arg{i}");
-                        callArgs.Add($"arg{i}");
-                    }
+                    return pluginClass;
                 }
-                else
+
+                if (!pluginClass.IsStatic)
                 {
-                    break;
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        SourceGeneratorDiagnostics.ContextPropertyNotStatic,
+                        pluginClass.Location,
+                        pluginClass.PropertyName
+                    ));
+                }
+
+                if (pluginClass.IsPrivate)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        SourceGeneratorDiagnostics.ContextPropertyIsPrivate,
+                        pluginClass.Location,
+                        pluginClass.PropertyName
+                    ));
+                }
+
+                if (pluginClass.IsProtected)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        SourceGeneratorDiagnostics.ContextPropertyIsProtected,
+                        pluginClass.Location,
+                        pluginClass.PropertyName
+                    ));
                 }
             }
 
-            string callArray;
-            switch (callArgs.Count)
-            {
-                case 0:
-                    callArray = "";
-                    break;
-                case 1:
-                    callArray = callArgs[0];
-                    break;
-                default:
-                    callArray = $"new object?[] {{ {string.Join(", ", callArgs)} }}";
-                    break;
-            }
-
-            sb.Append(string.Join(", ", declarationArgs));
-            sb.Append(") => ");
-            if (contextPropertyName is null)
-            {
-                if (string.IsNullOrEmpty(callArray))
-                {
-                    sb.AppendLine($"InternationalizationManager.Instance.GetTranslation(\"{localizableString.Key}\");");
-                }
-                else
-                {
-                    sb.AppendLine(
-                        $"string.Format(InternationalizationManager.Instance.GetTranslation(\"{localizableString.Key}\"), {callArray});"
-                    );
-                }
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(callArray))
-                {
-                    sb.AppendLine($"{contextPropertyName}.API.GetTranslation(\"{localizableString.Key}\");");
-                }
-                else
-                {
-                    sb.AppendLine($"string.Format({contextPropertyName}.API.GetTranslation(\"{localizableString.Key}\"), {callArray});");
-                }
-            }
-
-            sb.AppendLine();
+            return null;
         }
 
         private static Location GetLocation(SyntaxTree syntaxTree, CSharpSyntaxNode classDeclaration)
@@ -418,81 +326,281 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             return Location.Create(syntaxTree, classDeclaration.GetLocation().SourceSpan);
         }
 
-        private static IEnumerable<(SyntaxTree, ClassDeclarationSyntax)> GetClasses(GeneratorExecutionContext context)
+#endregion
+
+        #region Generate Source
+
+        private static void GenerateSource(
+            SourceProductionContext spc,
+            AdditionalText xamlFile,
+            ImmutableArray<LocalizableString> localizedStrings,
+            OptimizationLevel optimizationLevel,
+            string assemblyName,
+            bool isCoreAssembly,
+            PluginClassInfo pluginInfo,
+            IEnumerable<string> usedKeys)
         {
-            foreach (var syntaxTree in context.Compilation.SyntaxTrees)
+            // Get unusedKeys if we need to optimize
+            IEnumerable<string> unusedKeys = new List<string>();
+            if (optimizationLevel == OptimizationLevel.Release)
             {
-                var classDeclarations = syntaxTree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>();
-                foreach (var classDeclaration in classDeclarations)
+                unusedKeys = localizedStrings
+                    .Select(ls => ls.Key)
+                    .ToImmutableHashSet()
+                    .Except(usedKeys);
+
+                foreach (var key in unusedKeys)
                 {
-                    yield return (syntaxTree, classDeclaration);
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        SourceGeneratorDiagnostics.LocalizationKeyUnused,
+                        Location.None,
+                        key));
                 }
             }
-        }
 
-        private static bool DoesClassImplementInterface(ClassDeclarationSyntax classDeclaration, string interfaceName)
-        {
-            return classDeclaration.BaseList?.Types.Any(v => interfaceName == v.ToString()) is true;
-        }
+            var sourceBuilder = new StringBuilder();
 
-        private static PropertyDeclarationSyntax GetPluginContextProperty(ClassDeclarationSyntax classDeclaration)
-        {
-            return classDeclaration.Members
-                .OfType<PropertyDeclarationSyntax>()
-                .FirstOrDefault(v => v.Type.ToString() is PluginContextTypeName);
-        }
+            // Generate header
+            GeneratedHeaderFromPath(sourceBuilder, xamlFile.Path);
+            sourceBuilder.AppendLine();
 
-        private static Modifiers GetPropertyModifiers(PropertyDeclarationSyntax property)
-        {
-            var isStatic = property.Modifiers.Any(v => v.Text is KeywordStatic);
-            var isPrivate = property.Modifiers.Any(v => v.Text is KeywordPrivate);
-            var isProtected = property.Modifiers.Any(v => v.Text is KeywordProtected);
-
-            return new Modifiers(isStatic, isPrivate, isProtected);
-        }
-
-        private class Modifiers
-        {
-            public bool Static { get; }
-            public bool Private { get; }
-            public bool Protected { get; }
-
-            public Modifiers(bool isStatic = false, bool isPrivate = false, bool isProtected = false)
+            // Generate usings
+            if (isCoreAssembly)
             {
-                Static = isStatic;
-                Private = isPrivate;
-                Protected = isProtected;
+                sourceBuilder.AppendLine("using Flow.Launcher.Core.Resource;");
+                sourceBuilder.AppendLine();
+            }
+
+            // Generate nullable enable
+            sourceBuilder.AppendLine("#nullable enable");
+            sourceBuilder.AppendLine();
+
+            // Generate namespace
+            sourceBuilder.AppendLine($"namespace {assemblyName};");
+            sourceBuilder.AppendLine();
+
+            // Uncomment them for debugging
+            //sourceBuilder.AppendLine("/*");
+            /*// Generate all localization strings
+            sourceBuilder.AppendLine("localizedStrings");
+            foreach (var ls in localizedStrings)
+            {
+                sourceBuilder.AppendLine($"{ls.Key} - {ls.Value}");
+            }
+            sourceBuilder.AppendLine();
+
+            // Generate all unused keys
+            sourceBuilder.AppendLine("unusedKeys");
+            foreach (var key in unusedKeys)
+            {
+                sourceBuilder.AppendLine($"{key}");
+            }
+            sourceBuilder.AppendLine();
+
+            // Generate all used keys
+            sourceBuilder.AppendLine("usedKeys");
+            foreach (var key in usedKeys)
+            {
+                sourceBuilder.AppendLine($"{key}");
+            }*/
+            //sourceBuilder.AppendLine("*/");
+
+            // Generate class
+            sourceBuilder.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{nameof(LocalizeSourceGenerator)}\", \"{PackageVersion}\")]");
+            sourceBuilder.AppendLine($"public static class {ClassName}");
+            sourceBuilder.AppendLine("{");
+
+            // Generate localization methods
+            var tabString = Spacing(1);
+            foreach (var ls in localizedStrings)
+            {
+                // TODO: Add support for usedKeys
+                /*if (unusedKeys.Contains(ls.Key))
+                {
+                    continue;
+                }*/
+
+                GenerateDocComments(sourceBuilder, ls, tabString);
+                GenerateLocalizationMethod(sourceBuilder, ls, isCoreAssembly, pluginInfo, tabString);
+            }
+
+            sourceBuilder.AppendLine("}");
+
+            // Add source to context
+            spc.AddSource($"{ClassName}.{assemblyName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+        }
+
+        private static void GeneratedHeaderFromPath(StringBuilder sb, string xamlFilePath)
+        {
+            if (string.IsNullOrEmpty(xamlFilePath))
+            {
+                sb.AppendLine("/// <auto-generated/>");
+            }
+            else
+            {
+                sb.AppendLine("/// <auto-generated>")
+                    .AppendLine($"/// From: {xamlFilePath}")
+                    .AppendLine("/// </auto-generated>");
             }
         }
-    }
 
-    public class LocalizableStringParam
-    {
-        public int Index { get; }
-        public string Name { get; }
-        public string Type { get; }
-
-        public LocalizableStringParam(int index, string name, string type)
+        private static void GenerateDocComments(StringBuilder sb, LocalizableString ls, string tabString)
         {
-            Index = index;
-            Name = name;
-            Type = type;
+            if (ls.Summary != null)
+            {
+                sb.AppendLine($"{tabString}/// <summary>");
+                foreach (var line in ls.Summary.Split('\n'))
+                {
+                    sb.AppendLine($"{tabString}/// {line.Trim()}");
+                }
+                sb.AppendLine($"{tabString}/// </summary>");
+            }
+
+            sb.AppendLine($"{tabString}/// <code>");
+            foreach (var line in ls.Value.Split('\n'))
+            {
+                sb.AppendLine($"{tabString}/// {line.Trim()}");
+            }
+            sb.AppendLine($"{tabString}/// </code>");
         }
-    }
 
-    public class LocalizableString
-    {
-        public string Key { get; }
-        public string Value { get; }
-        public string Summary { get; }
-        public IEnumerable<LocalizableStringParam> Params { get; }
-
-        public LocalizableString(string key, string value, string summary, IEnumerable<LocalizableStringParam> @params)
+        private static void GenerateLocalizationMethod(
+            StringBuilder sb,
+            LocalizableString ls,
+            bool isCoreAssembly,
+            PluginClassInfo pluginInfo,
+            string tabString)
         {
-            Key = key;
-            Value = value;
-            Summary = summary;
-            Params = @params;
+            sb.Append($"{tabString}public static string {ls.Key}(");
+            var parameters = BuildParameters(ls);
+            sb.Append(string.Join(", ", parameters.Select(p => $"{p.Type} {p.Name}")));
+            sb.Append(") => ");
+
+            var formatArgs = parameters.Count > 0
+                ? $", {string.Join(", ", parameters.Select(p => p.Name))}"
+                : string.Empty;
+
+            if (isCoreAssembly)
+            {
+                sb.AppendLine(parameters.Count > 0
+                    ? $"string.Format(InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\"){formatArgs});"
+                    : $"InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\");");
+            }
+            else if (pluginInfo?.IsValid == true)
+            {
+                sb.AppendLine(parameters.Count > 0
+                    ? $"string.Format({pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\"){formatArgs});"
+                    : $"{pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\");");
+            }
+            else
+            {
+                sb.AppendLine("\"LOCALIZATION_ERROR\";");
+            }
+
+            sb.AppendLine();
         }
+
+        private static List<MethodParameter> BuildParameters(LocalizableString ls)
+        {
+            var parameters = new List<MethodParameter>();
+            for (var i = 0; i < 10; i++)
+            {
+                if (!ls.Value.Contains($"{{{i}}}"))
+                {
+                    continue;
+                }
+
+                var param = ls.Params.FirstOrDefault(p => p.Index == i);
+                parameters.Add(param is null
+                    ? new MethodParameter($"arg{i}", "object?")
+                    : new MethodParameter(param.Name, param.Type));
+            }
+            return parameters;
+        }
+
+        private static string Spacing(int n)
+        {
+            Span<char> spaces = stackalloc char[n * 4];
+            spaces.Fill(' ');
+
+            var sb = new StringBuilder(n * 4);
+            foreach (var c in spaces)
+            {
+                _ = sb.Append(c);
+            }
+
+            return sb.ToString();
+        }
+
+        #endregion
+
+        #region Classes
+
+        public class MethodParameter
+        {
+            public string Name { get; }
+            public string Type { get; }
+
+            public MethodParameter(string name, string type)
+            {
+                Name = name;
+                Type = type;
+            }
+        }
+
+        public class LocalizableStringParam
+        {
+            public int Index { get; }
+            public string Name { get; }
+            public string Type { get; }
+
+            public LocalizableStringParam(int index, string name, string type)
+            {
+                Index = index;
+                Name = name;
+                Type = type;
+            }
+        }
+
+        public class LocalizableString
+        {
+            public string Key { get; }
+            public string Value { get; }
+            public string Summary { get; }
+            public IEnumerable<LocalizableStringParam> Params { get; }
+
+            public LocalizableString(string key, string value, string summary, IEnumerable<LocalizableStringParam> @params)
+            {
+                Key = key;
+                Value = value;
+                Summary = summary;
+                Params = @params;
+            }
+        }
+
+        public class PluginClassInfo
+        {
+            public Location Location { get; }
+            public string ClassName { get; }
+            public string PropertyName { get; }
+            public bool IsStatic { get; }
+            public bool IsPrivate { get; }
+            public bool IsProtected { get; }
+
+            public string ContextAccessor => $"{ClassName}.{PropertyName}";
+            public bool IsValid => PropertyName != null && IsStatic && (!IsPrivate) && (!IsProtected);
+
+            public PluginClassInfo(Location location, string className, string propertyName, bool isStatic, bool isPrivate, bool isProtected)
+            {
+                Location = location;
+                ClassName = className;
+                PropertyName = propertyName;
+                IsStatic = isStatic;
+                IsPrivate = isPrivate;
+                IsProtected = isProtected;
+            }
+        }
+
+        #endregion
     }
 }
