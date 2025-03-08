@@ -446,22 +446,32 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         private static void GenerateDocComments(StringBuilder sb, LocalizableString ls, string tabString)
         {
-            if (ls.Summary != null)
+            if (!string.IsNullOrEmpty(ls.Summary))
             {
-                sb.AppendLine($"{tabString}/// <summary>");
-                foreach (var line in ls.Summary.Split('\n'))
+                var summaryLines = ls.Summary.Split('\n');
+                if (summaryLines.Length > 0)
+                {
+                    sb.AppendLine($"{tabString}/// <summary>");
+                    foreach (var line in summaryLines)
+                    {
+                        sb.AppendLine($"{tabString}/// {line.Trim()}");
+                    }
+                    sb.AppendLine($"{tabString}/// </summary>");
+                }
+            }
+
+            var lines = ls.Value.Split('\n');
+            if (lines.Length > 0)
+            {
+                sb.AppendLine($"{tabString}/// <remarks>");
+                sb.AppendLine($"{tabString}/// e.g.: <code>");
+                foreach (var line in lines)
                 {
                     sb.AppendLine($"{tabString}/// {line.Trim()}");
                 }
-                sb.AppendLine($"{tabString}/// </summary>");
+                sb.AppendLine($"{tabString}/// </code>");
+                sb.AppendLine($"{tabString}/// </remarks>");
             }
-
-            sb.AppendLine($"{tabString}/// <code>");
-            foreach (var line in ls.Value.Split('\n'))
-            {
-                sb.AppendLine($"{tabString}/// {line.Trim()}");
-            }
-            sb.AppendLine($"{tabString}/// </code>");
         }
 
         private static void GenerateLocalizationMethod(
