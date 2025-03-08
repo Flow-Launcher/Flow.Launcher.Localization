@@ -620,19 +620,21 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
             if (isCoreAssembly)
             {
+                var getTranslation = "InternationalizationManager.Instance.GetTranslation";
                 sb.AppendLine(parameters.Count > 0
                     ? !ls.Format ? 
-                        $"string.Format(InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\"){formatArgs});"
-                        : $"string.Format(System.Globalization.CultureInfo.CurrentCulture, InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\"){formatArgs});"
-                    : $"InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\");");
+                        $"string.Format({getTranslation}(\"{ls.Key}\"){formatArgs});"
+                        : $"string.Format(System.Globalization.CultureInfo.CurrentCulture, {getTranslation}(\"{ls.Key}\"){formatArgs});"
+                    : $"{getTranslation}(\"{ls.Key}\");");
             }
             else if (pluginInfo?.IsValid == true)
             {
+                var getTranslation = $"{pluginInfo.ContextAccessor}.API.GetTranslation";
                 sb.AppendLine(parameters.Count > 0
                     ? !ls.Format ? 
-                        $"string.Format({pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\"){formatArgs});"
-                        : $"string.Format(System.Globalization.CultureInfo.CurrentCulture, {pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\"){formatArgs});"
-                    : $"{pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\");");
+                        $"string.Format({getTranslation}(\"{ls.Key}\"){formatArgs});"
+                        : $"string.Format(System.Globalization.CultureInfo.CurrentCulture, {getTranslation}(\"{ls.Key}\"){formatArgs});"
+                    : $"{getTranslation}(\"{ls.Key}\");");
             }
             else
             {
