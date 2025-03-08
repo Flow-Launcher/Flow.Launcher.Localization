@@ -609,10 +609,11 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             string tabString)
         {
             sb.Append($"{tabString}public static string {ls.Key}(");
+
+            // Get parameter string
             var parameters = ls.Params.ToList();
             sb.Append(string.Join(", ", parameters.Select(p => $"{p.Type} {p.Name}")));
             sb.Append(") => ");
-
             var formatArgs = parameters.Count > 0
                 ? $", {string.Join(", ", parameters.Select(p => p.Name))}"
                 : string.Empty;
@@ -620,13 +621,17 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             if (isCoreAssembly)
             {
                 sb.AppendLine(parameters.Count > 0
-                    ? $"string.Format(InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\"){formatArgs});"
+                    ? !ls.Format ? 
+                        $"string.Format(InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\"){formatArgs});"
+                        : $"string.Format(System.Globalization.CultureInfo.CurrentCulture, InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\"){formatArgs});"
                     : $"InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\");");
             }
             else if (pluginInfo?.IsValid == true)
             {
                 sb.AppendLine(parameters.Count > 0
-                    ? $"string.Format({pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\"){formatArgs});"
+                    ? !ls.Format ? 
+                        $"string.Format({pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\"){formatArgs});"
+                        : $"string.Format(System.Globalization.CultureInfo.CurrentCulture, {pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\"){formatArgs});"
                     : $"{pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\");");
             }
             else
@@ -669,6 +674,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             public string Value { get; }
             public string Summary { get; }
             public IEnumerable<LocalizableStringParam> Params { get; }
+            
+            public bool Format => Params.Any(p => !string.IsNullOrEmpty(p.Format));
 
             public LocalizableString(string key, string value, string summary, IEnumerable<LocalizableStringParam> @params)
             {
