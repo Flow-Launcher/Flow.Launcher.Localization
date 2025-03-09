@@ -192,22 +192,166 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
                 if (key != null)
                 {
-                    localizableStrings.Add(ParseLocalizableString(key, value, comment));
+                    var formatParams = GetParameters(value);
+                    var (summary, updatedFormatParams) = ParseCommentAndUpdateParameters(comment, formatParams);
+                    localizableStrings.Add(new LocalizableString(key, value, summary, updatedFormatParams));
                 }
             }
 
             return localizableStrings.ToImmutableArray();
         }
 
-        private static LocalizableString ParseLocalizableString(string key, string value, XComment comment)
+        /// <summary>
+        /// Analyzes the format string and returns a list of its parameters.
+        /// </summary>
+        /// <param name="format"></param>
+        /// <returns></returns>
+        private static List<LocalizableStringParam> GetParameters(string format)
         {
-            var (summary, parameters) = ParseComment(comment);
-            return new LocalizableString(key, value, summary, parameters);
+            var parameters = new Dictionary<int, string>();
+            int maxIndex = -1;
+            int i = 0;
+            int len = format.Length;
+
+            while (i < len)
+            {
+                if (format[i] == '{')
+                {
+                    if (i + 1 < len && format[i + 1] == '{')
+                    {
+                        // Escaped '{', skip both
+                        i += 2;
+                        continue;
+                    }
+                    else
+                    {
+                        // Start of a format item, parse index and format
+                        i++; // Move past '{'
+                        int index = 0;
+                        bool hasIndex = false;
+
+                        // Parse index
+                        while (i < len && char.IsDigit(format[i]))
+                        {
+                            hasIndex = true;
+                            index = index * 10 + (format[i] - '0');
+                            i++;
+                        }
+
+                        if (!hasIndex)
+                        {
+                            // Skip invalid format item
+                            while (i < len && format[i] != '}')
+                            {
+                                i++;
+                            }
+                            if (i < len)
+                            {
+                                i++; // Move past '}'
+                            }
+                            continue;
+                        }
+
+                        // Check for alignment (comma followed by optional sign and digits)
+                        if (i < len && format[i] == ',')
+                        {
+                            i++; // Skip comma and optional sign
+                            if (i < len && (format[i] == '+' || format[i] == '-'))
+                            {
+                                i++;
+                            }
+                            // Skip digits
+                            while (i < len && char.IsDigit(format[i]))
+                            {
+                                i++;
+                            }
+                        }
+
+                        string formatPart = null;
+
+                        // Check for format (after colon)
+                        if (i < len && format[i] == ':')
+                        {
+                            i++; // Move past ':'
+                            int start = i;
+                            while (i < len && format[i] != '}')
+                            {
+                                i++;
+                            }
+                            formatPart = i < len ? format.Substring(start, i - start) : format.Substring(start);
+                            if (i < len)
+                            {
+                                i++; // Move past '}'
+                            }
+                        }
+                        else if (i < len && format[i] == '}')
+                        {
+                            // No format part
+                            i++; // Move past '}'
+                        }
+                        else
+                        {
+                            // Invalid characters after index, skip to '}'
+                            while (i < len && format[i] != '}')
+                            {
+                                i++;
+                            }
+                            if (i < len)
+                            {
+                                i++; // Move past '}'
+                            }
+                        }
+
+                        parameters[index] = formatPart;
+                        if (index > maxIndex)
+                        {
+                            maxIndex = index;
+                        }
+                    }
+                }
+                else if (format[i] == '}')
+                {
+                    // Handle possible escaped '}}'
+                    if (i + 1 < len && format[i + 1] == '}')
+                    {
+                        i += 2; // Skip escaped '}}'
+                    }
+                    else
+                    {
+                        i++; // Move past '}'
+                    }
+                }
+                else
+                {
+                    i++;
+                }
+            }
+
+            // Generate the result list from 0 to maxIndex
+            var result = new List<LocalizableStringParam>();
+            if (maxIndex == -1)
+            {
+                return result;
+            }
+
+            for (int idx = 0; idx <= maxIndex; idx++)
+            {
+                var formatValue = parameters.TryGetValue(idx, out var value) ? value : null;
+                result.Add(new LocalizableStringParam { Index = idx, Format = formatValue, Name = $"arg{idx}", Type = "object?" });
+            }
+
+            return result;
         }
 
-        private static (string Summary, ImmutableArray<LocalizableStringParam> Parameters) ParseComment(XComment comment)
+        /// <summary>
+        /// Parses the comment and updates the format parameter names and types.
+        /// </summary>
+        /// <param name="comment"></param>
+        /// <param name="parameters"></param>
+        /// <returns></returns>
+        private static (string Summary, ImmutableArray<LocalizableStringParam> Parameters) ParseCommentAndUpdateParameters(XComment comment, List<LocalizableStringParam> parameters)
         {
-            if (comment == null || comment.Value == null)
+            if (comment == null || comment.Value == null || parameters.Count == 0)
             {
                 return (null, _emptyLocalizableStringParams);
             }
@@ -216,13 +360,26 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             {
                 var doc = XDocument.Parse($"<root>{comment.Value}</root>");
                 var summary = doc.Descendants("summary").FirstOrDefault()?.Value.Trim();
-                var parameters = doc.Descendants("param")
-                    .Select(p => new LocalizableStringParam(
-                        int.Parse(p.Attribute("index").Value),
-                        p.Attribute("name").Value,
-                        p.Attribute("type").Value))
-                    .ToImmutableArray();
-                return (summary, parameters);
+
+                // Update parameter names and types of the format string
+                foreach (var p in doc.Descendants("param"))
+                {
+                    var index = int.TryParse(p.Attribute("index").Value, out var intValue) ? intValue : -1;
+                    var name = p.Attribute("name").Value;
+                    var type = p.Attribute("type").Value;
+                    if (index >= 0 && index < parameters.Count)
+                    {
+                        if (!string.IsNullOrEmpty(name))
+                        {
+                            parameters[index].Name = name;
+                        }
+                        if (!string.IsNullOrEmpty(type))
+                        {
+                            parameters[index].Type = type;
+                        }
+                    }
+                }
+                return (summary, parameters.ToImmutableArray());
             }
             catch
             {
@@ -521,25 +678,32 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             string tabString)
         {
             sb.Append($"{tabString}public static string {ls.Key}(");
-            var parameters = BuildParameters(ls);
+
+            // Get parameter string
+            var parameters = ls.Params.ToList();
             sb.Append(string.Join(", ", parameters.Select(p => $"{p.Type} {p.Name}")));
             sb.Append(") => ");
-
             var formatArgs = parameters.Count > 0
                 ? $", {string.Join(", ", parameters.Select(p => p.Name))}"
                 : string.Empty;
 
             if (isCoreAssembly)
             {
+                var getTranslation = "InternationalizationManager.Instance.GetTranslation";
                 sb.AppendLine(parameters.Count > 0
-                    ? $"string.Format(InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\"){formatArgs});"
-                    : $"InternationalizationManager.Instance.GetTranslation(\"{ls.Key}\");");
+                    ? !ls.Format ? 
+                        $"string.Format({getTranslation}(\"{ls.Key}\"){formatArgs});"
+                        : $"string.Format(System.Globalization.CultureInfo.CurrentCulture, {getTranslation}(\"{ls.Key}\"){formatArgs});"
+                    : $"{getTranslation}(\"{ls.Key}\");");
             }
             else if (pluginInfo?.IsValid == true)
             {
+                var getTranslation = $"{pluginInfo.ContextAccessor}.API.GetTranslation";
                 sb.AppendLine(parameters.Count > 0
-                    ? $"string.Format({pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\"){formatArgs});"
-                    : $"{pluginInfo.ContextAccessor}.API.GetTranslation(\"{ls.Key}\");");
+                    ? !ls.Format ? 
+                        $"string.Format({getTranslation}(\"{ls.Key}\"){formatArgs});"
+                        : $"string.Format(System.Globalization.CultureInfo.CurrentCulture, {getTranslation}(\"{ls.Key}\"){formatArgs});"
+                    : $"{getTranslation}(\"{ls.Key}\");");
             }
             else
             {
@@ -547,24 +711,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             }
 
             sb.AppendLine();
-        }
-
-        private static List<MethodParameter> BuildParameters(LocalizableString ls)
-        {
-            var parameters = new List<MethodParameter>();
-            for (var i = 0; i < 10; i++)
-            {
-                if (!ls.Value.Contains($"{{{i}}}"))
-                {
-                    continue;
-                }
-
-                var param = ls.Params.FirstOrDefault(p => p.Index == i);
-                parameters.Add(param is null
-                    ? new MethodParameter($"arg{i}", "object?")
-                    : new MethodParameter(param.Name, param.Type));
-            }
-            return parameters;
         }
 
         private static string Spacing(int n)
@@ -585,30 +731,12 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         #region Classes
 
-        public class MethodParameter
-        {
-            public string Name { get; }
-            public string Type { get; }
-
-            public MethodParameter(string name, string type)
-            {
-                Name = name;
-                Type = type;
-            }
-        }
-
         public class LocalizableStringParam
         {
-            public int Index { get; }
-            public string Name { get; }
-            public string Type { get; }
-
-            public LocalizableStringParam(int index, string name, string type)
-            {
-                Index = index;
-                Name = name;
-                Type = type;
-            }
+            public int Index { get; set; }
+            public string Format { get; set; }
+            public string Name { get; set; }
+            public string Type { get; set; }
         }
 
         public class LocalizableString
@@ -617,6 +745,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             public string Value { get; }
             public string Summary { get; }
             public IEnumerable<LocalizableStringParam> Params { get; }
+            
+            public bool Format => Params.Any(p => !string.IsNullOrEmpty(p.Format));
 
             public LocalizableString(string key, string value, string summary, IEnumerable<LocalizableStringParam> @params)
             {
