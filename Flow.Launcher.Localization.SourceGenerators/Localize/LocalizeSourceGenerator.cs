@@ -27,12 +27,17 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         private const string ClassName = "Localize";
         private const string PluginInterfaceName = "IPluginI18n";
         private const string PluginContextTypeName = "PluginInitContext";
-        private const string XamlPrefix = "system";
+        private const string systemPrefixUri = "clr-namespace:System;assembly=mscorlib";
+        private const string xamlPrefixUri = "http://schemas.microsoft.com/winfx/2006/xaml";
         private const string XamlTag = "String";
+        private const string KeyTag = "Key";
 
-        private readonly Regex _languagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
+        private static readonly Regex _languagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
 
         private static readonly Version PackageVersion = typeof(LocalizeSourceGenerator).Assembly.GetName().Version;
+
+        private static readonly ImmutableArray<LocalizableString> _emptyLocalizableStrings = ImmutableArray<LocalizableString>.Empty;
+        private static readonly ImmutableArray<LocalizableStringParam> _emptyLocalizableStringParams = ImmutableArray<LocalizableStringParam>.Empty;
 
         #endregion
 
@@ -128,15 +133,49 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var content = file.GetText(ct)?.ToString();
             if (content is null)
             {
-                return ImmutableArray<LocalizableString>.Empty;
+                return _emptyLocalizableStrings;
             }
 
             var doc = XDocument.Parse(content);
-            var systemNs = doc.Root?.GetNamespaceOfPrefix(XamlPrefix); // Should be "system"
-            var xNs = doc.Root?.GetNamespaceOfPrefix("x");
+            var root = doc.Root;
+            if (root is null)
+            {
+                return _emptyLocalizableStrings;
+            }
+
+            // Find prefixes for the target URIs
+            string systemPrefix = null;
+            string xamlPrefix = null;
+
+            foreach (var attr in root.Attributes())
+            {
+                // Check if the attribute is a namespace declaration (xmlns:...)
+                if (attr.Name.NamespaceName == XNamespace.Xmlns.NamespaceName)
+                {
+                    string uri = attr.Value;
+                    string prefix = attr.Name.LocalName;
+
+                    if (uri == systemPrefixUri)
+                    {
+                        systemPrefix = prefix;
+                    }
+                    else if (uri == xamlPrefixUri)
+                    {
+                        xamlPrefix = prefix;
+                    }
+                }
+            }
+
+            if (systemPrefix is null || xamlPrefix is null)
+            {
+                return _emptyLocalizableStrings;
+            }
+
+            var systemNs = doc.Root?.GetNamespaceOfPrefix(systemPrefix);
+            var xNs = doc.Root?.GetNamespaceOfPrefix(xamlPrefix);
             if (systemNs is null || xNs is null)
             {
-                return ImmutableArray<LocalizableString>.Empty;
+                return _emptyLocalizableStrings;
             }
 
             var localizableStrings = new List<LocalizableString>();
@@ -144,10 +183,10 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             {
                 if (ct.IsCancellationRequested)
                 {
-                    return ImmutableArray<LocalizableString>.Empty;
+                    return _emptyLocalizableStrings;
                 }
 
-                var key = element.Attribute(xNs + "Key")?.Value; // Correctly get x:Key
+                var key = element.Attribute(xNs + KeyTag)?.Value; // "Key" attribute in xaml namespace
                 var value = element.Value;
                 var comment = element.PreviousNode as XComment;
 
@@ -170,7 +209,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         {
             if (comment == null || comment.Value == null)
             {
-                return (null, ImmutableArray<LocalizableStringParam>.Empty);
+                return (null, _emptyLocalizableStringParams);
             }
 
             try
@@ -187,7 +226,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             }
             catch
             {
-                return (null, ImmutableArray<LocalizableStringParam>.Empty);
+                return (null, _emptyLocalizableStringParams);
             }
         }
 
