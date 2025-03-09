@@ -190,6 +190,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                         i++; // Move past '{'
                         int index = 0;
                         bool hasIndex = false;
+
                         // Parse index
                         while (i < len && char.IsDigit(format[i]))
                         {
@@ -197,6 +198,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                             index = index * 10 + (format[i] - '0');
                             i++;
                         }
+
                         if (!hasIndex)
                         {
                             // Skip invalid format item
@@ -210,8 +212,25 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                             }
                             continue;
                         }
-                        // Check for colon to parse format
+
+                        // Check for alignment (comma followed by optional sign and digits)
+                        if (i < len && format[i] == ',')
+                        {
+                            i++; // Skip comma and optional sign
+                            if (i < len && (format[i] == '+' || format[i] == '-'))
+                            {
+                                i++;
+                            }
+                            // Skip digits
+                            while (i < len && char.IsDigit(format[i]))
+                            {
+                                i++;
+                            }
+                        }
+
                         string formatPart = null;
+
+                        // Check for format (after colon)
                         if (i < len && format[i] == ':')
                         {
                             i++; // Move past ':'
@@ -243,6 +262,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                                 i++; // Move past '}'
                             }
                         }
+
                         parameters[index] = formatPart;
                         if (index > maxIndex)
                         {
@@ -255,11 +275,11 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                     // Handle possible escaped '}}'
                     if (i + 1 < len && format[i + 1] == '}')
                     {
-                        i += 2;
+                        i += 2; // Skip escaped '}}'
                     }
                     else
                     {
-                        i++;
+                        i++; // Move past '}'
                     }
                 }
                 else
@@ -274,7 +294,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             {
                 return result;
             }
-            
+
             for (int idx = 0; idx <= maxIndex; idx++)
             {
                 var formatValue = parameters.TryGetValue(idx, out var value) ? value : null;
