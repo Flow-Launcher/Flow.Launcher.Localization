@@ -5,10 +5,10 @@ namespace Flow.Launcher.Localization.SourceGenerators
 {
     public static class SourceGeneratorDiagnostics
     {
-        public static readonly DiagnosticDescriptor CouldNotFindResourceDictionaries = new DiagnosticDescriptor(
+        public static readonly DiagnosticDescriptor LocalizationKeyUnused = new DiagnosticDescriptor(
             "FLSG0001",
-            "Could not find resource dictionaries",
-            "Could not find resource dictionaries. There must be a file named [LANG].xaml file (for example, en.xaml), and it must be specified in <AdditionalFiles /> in your .csproj file.",
+            "Localization key is unused",
+            $"Method `{Constants.ClassName}.{{0}}` is never used",
             "Localization",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true
@@ -54,15 +54,6 @@ namespace Flow.Launcher.Localization.SourceGenerators
             "FLSG0006",
             "Plugin context property is protected",
             "Context property `{0}` is protected. It must be either internal or public.",
-            "Localization",
-            DiagnosticSeverity.Warning,
-            isEnabledByDefault: true
-        );
-
-        public static readonly DiagnosticDescriptor LocalizationKeyUnused = new DiagnosticDescriptor(
-            "FLSG0007",
-            "Localization key is unused",
-            $"Method `{Constants.ClassName}.{{0}}` is never used",
             "Localization",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true
