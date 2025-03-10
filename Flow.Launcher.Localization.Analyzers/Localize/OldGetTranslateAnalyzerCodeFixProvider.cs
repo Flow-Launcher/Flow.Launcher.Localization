@@ -109,6 +109,5 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             var newRoot = root.ReplaceNode(invocationExpr, newInnerInvocationExpr);
             return context.Document.WithSyntaxRoot(newRoot);
         }
-
     }
 }

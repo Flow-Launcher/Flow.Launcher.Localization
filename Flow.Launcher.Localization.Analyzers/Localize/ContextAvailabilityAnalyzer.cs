@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Linq;
+using Flow.Launcher.Localization.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -17,10 +18,6 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             AnalyzerDiagnostics.ContextIsNotDeclared
         );
 
-        private const string PluginContextTypeName = "PluginInitContext";
-
-        private const string PluginInterfaceName = "IPluginI18n";
-
         public override void Initialize(AnalysisContext context)
         {
             context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
@@ -30,6 +27,12 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
 
         private static void AnalyzeNode(SyntaxNodeAnalysisContext context)
         {
+            var configOptions = context.Options.AnalyzerConfigOptionsProvider;
+            var useDI = configOptions.GetFLLUseDependencyInjection();
+
+            // If we use dependency injection, we don't need to check for this context property
+            if (useDI) return;
+
             var classDeclaration = (ClassDeclarationSyntax)context.Node;
             var semanticModel = context.SemanticModel;
             var classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
@@ -38,7 +41,7 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
 
             var contextProperty = classDeclaration.Members.OfType<PropertyDeclarationSyntax>()
                 .Select(p => semanticModel.GetDeclaredSymbol(p))
-                .FirstOrDefault(p => p?.Type.Name is PluginContextTypeName);
+                .FirstOrDefault(p => p?.Type.Name is Constants.PluginContextTypeName);
 
             if (contextProperty != null)
             {
@@ -67,7 +70,7 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
                 .OfType<FieldDeclarationSyntax>()
                 .SelectMany(f => f.Declaration.Variables)
                 .Select(f => semanticModel.GetDeclaredSymbol(f))
-                .FirstOrDefault(f => f is IFieldSymbol fs && fs.Type.Name is PluginContextTypeName);
+                .FirstOrDefault(f => f is IFieldSymbol fs && fs.Type.Name is Constants.PluginContextTypeName);
             var parentSyntax = fieldDeclaration
                 ?.DeclaringSyntaxReferences[0]
                 .GetSyntax()
@@ -89,6 +92,6 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
         }
 
         private static bool IsPluginEntryClass(INamedTypeSymbol namedTypeSymbol) =>
-            namedTypeSymbol?.Interfaces.Any(i => i.Name == PluginInterfaceName) ?? false;
+            namedTypeSymbol?.Interfaces.Any(i => i.Name == Constants.PluginInterfaceName) ?? false;
     }
 }

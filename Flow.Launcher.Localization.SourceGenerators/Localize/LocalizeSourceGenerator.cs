@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml.Linq;
+using Flow.Launcher.Localization.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Flow.Launcher.Localization.SourceGenerators.Localize
@@ -20,19 +21,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
     public partial class LocalizeSourceGenerator : IIncrementalGenerator
     {
         #region Fields
-
-        private const string CoreNamespace1 = "Flow.Launcher";
-        private const string CoreNamespace2 = "Flow.Launcher.Core";
-        private const string DefaultNamespace = "Flow.Launcher";
-        private const string ClassName = "Localize";
-        private const string PluginInterfaceName = "IPluginI18n";
-        private const string PluginContextTypeName = "PluginInitContext";
-        private const string systemPrefixUri = "clr-namespace:System;assembly=mscorlib";
-        private const string xamlPrefixUri = "http://schemas.microsoft.com/winfx/2006/xaml";
-        private const string XamlTag = "String";
-        private const string KeyTag = "Key";
-
-        private static readonly Regex _languagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
 
         private static readonly Version PackageVersion = typeof(LocalizeSourceGenerator).Assembly.GetName().Version;
 
@@ -50,7 +38,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
             var xamlFiles = context.AdditionalTextsProvider
-                .Where(file => _languagesXamlRegex.IsMatch(file.Path));
+                .Where(file => Constants.LanguagesXamlRegex.IsMatch(file.Path));
 
             var localizedStrings = xamlFiles
                 .Select((file, ct) => ParseXamlFile(file, ct))
@@ -75,7 +63,9 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
             var compilation = context.CompilationProvider;
 
-            var combined = localizedStrings.Combine(invocationKeys).Combine(pluginClasses).Combine(compilation).Combine(xamlFiles.Collect());
+            var configOptions = context.AnalyzerConfigOptionsProvider;
+            
+            var combined = localizedStrings.Combine(invocationKeys).Combine(pluginClasses).Combine(configOptions).Combine(compilation).Combine(xamlFiles.Collect());
 
             context.RegisterSourceOutput(combined, Execute);
         }
@@ -86,10 +76,11 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         /// <param name="spc">The source production context.</param>
         /// <param name="data">The provided data.</param>
         private void Execute(SourceProductionContext spc, 
-            ((((ImmutableArray<LocalizableString> LocalizableStrings, 
-            ImmutableHashSet<string> InvocationKeys), 
-            ImmutableArray<PluginClassInfo> PluginClassInfos), 
-            Compilation Compilation), 
+            (((((ImmutableArray<LocalizableString> LocalizableStrings, 
+            ImmutableHashSet<string> InvocationKeys),
+            ImmutableArray<PluginClassInfo> PluginClassInfos),
+            AnalyzerConfigOptionsProvider ConfigOptionsProvider),
+            Compilation Compilation),
             ImmutableArray<AdditionalText> AdditionalTexts) data)
         {
             var xamlFiles = data.AdditionalTexts;
@@ -103,23 +94,28 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             }
 
             var compilation = data.Item1.Compilation;
-            var pluginClasses = data.Item1.Item1.PluginClassInfos;
-            var usedKeys = data.Item1.Item1.Item1.InvocationKeys;
-            var localizedStrings = data.Item1.Item1.Item1.LocalizableStrings;
+            var configOptions = data.Item1.Item1.ConfigOptionsProvider;
+            var pluginClasses = data.Item1.Item1.Item1.PluginClassInfos;
+            var usedKeys = data.Item1.Item1.Item1.Item1.InvocationKeys;
+            var localizedStrings = data.Item1.Item1.Item1.Item1.LocalizableStrings;
 
-            var assemblyName = compilation.AssemblyName ?? DefaultNamespace;
+            var assemblyName = compilation.AssemblyName ?? Constants.DefaultNamespace;
             var optimizationLevel = compilation.Options.OptimizationLevel;
+            var useDI = configOptions.GetFLLUseDependencyInjection();
 
-            var pluginInfo = GetValidPluginInfo(pluginClasses, spc);
-            var isCoreAssembly = assemblyName == CoreNamespace1 || assemblyName == CoreNamespace2;
-
+            PluginClassInfo pluginInfo = null;
+            if (!useDI)
+            {
+                pluginInfo = GetValidPluginInfo(pluginClasses, spc);
+            }
+            
             GenerateSource(
                 spc,
                 xamlFiles[0],
                 localizedStrings,
                 optimizationLevel,
                 assemblyName,
-                isCoreAssembly,
+                useDI,
                 pluginInfo,
                 usedKeys);
         }
@@ -155,11 +151,11 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                     string uri = attr.Value;
                     string prefix = attr.Name.LocalName;
 
-                    if (uri == systemPrefixUri)
+                    if (uri == Constants.SystemPrefixUri)
                     {
                         systemPrefix = prefix;
                     }
-                    else if (uri == xamlPrefixUri)
+                    else if (uri == Constants.XamlPrefixUri)
                     {
                         xamlPrefix = prefix;
                     }
@@ -179,14 +175,14 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             }
 
             var localizableStrings = new List<LocalizableString>();
-            foreach (var element in doc.Descendants(systemNs + XamlTag)) // "String" elements in system namespace
+            foreach (var element in doc.Descendants(systemNs + Constants.XamlTag)) // "String" elements in system namespace
             {
                 if (ct.IsCancellationRequested)
                 {
                     return _emptyLocalizableStrings;
                 }
 
-                var key = element.Attribute(xNs + KeyTag)?.Value; // "Key" attribute in xaml namespace
+                var key = element.Attribute(xNs + Constants.KeyTag)?.Value; // "Key" attribute in xaml namespace
                 var value = element.Value;
                 var comment = element.PreviousNode as XComment;
 
@@ -424,7 +420,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             parts.Reverse();
 
             // Check if the first part is ClassName and there's at least one more part
-            if (parts.Count < 2 || parts[0] != ClassName)
+            if (parts.Count < 2 || parts[0] != Constants.ClassName)
             {
                 return null;
             }
@@ -440,7 +436,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         {
             var classDecl = (ClassDeclarationSyntax)context.Node;
             var location = GetLocation(context.SemanticModel.SyntaxTree, classDecl);
-            if (!classDecl.BaseList?.Types.Any(t => t.Type.ToString() == PluginInterfaceName) ?? true)
+            if (!classDecl.BaseList?.Types.Any(t => t.Type.ToString() == Constants.PluginInterfaceName) ?? true)
             {
                 // Cannot find class that implements IPluginI18n
                 return null;
@@ -448,7 +444,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
             var property = classDecl.Members
                 .OfType<PropertyDeclarationSyntax>()
-                .FirstOrDefault(p => p.Type.ToString() == PluginContextTypeName);
+                .FirstOrDefault(p => p.Type.ToString() == Constants.PluginContextTypeName);
             if (property is null)
             {
                 // Cannot find context
@@ -532,7 +528,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             ImmutableArray<LocalizableString> localizedStrings,
             OptimizationLevel optimizationLevel,
             string assemblyName,
-            bool isCoreAssembly,
+            bool useDI,
             PluginClassInfo pluginInfo,
             IEnumerable<string> usedKeys)
         {
@@ -559,13 +555,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             // Generate header
             GeneratedHeaderFromPath(sourceBuilder, xamlFile.Path);
             sourceBuilder.AppendLine();
-
-            // Generate usings
-            if (isCoreAssembly)
-            {
-                sourceBuilder.AppendLine("using Flow.Launcher.Core.Resource;");
-                sourceBuilder.AppendLine();
-            }
 
             // Generate nullable enable
             sourceBuilder.AppendLine("#nullable enable");
@@ -603,11 +592,26 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
             // Generate class
             sourceBuilder.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{nameof(LocalizeSourceGenerator)}\", \"{PackageVersion}\")]");
-            sourceBuilder.AppendLine($"public static class {ClassName}");
+            sourceBuilder.AppendLine($"public static class {Constants.ClassName}");
             sourceBuilder.AppendLine("{");
 
-            // Generate localization methods
             var tabString = Spacing(1);
+
+            // Generate API instance
+            string getTranslation = null;
+            if (useDI)
+            {
+                sourceBuilder.AppendLine($"{tabString}private static Flow.Launcher.Plugin.IPublicAPI? api = null;");
+                sourceBuilder.AppendLine($"{tabString}private static Flow.Launcher.Plugin.IPublicAPI Api => api ??= CommunityToolkit.Mvvm.DependencyInjection.Ioc.Default.GetRequiredService<Flow.Launcher.Plugin.IPublicAPI>();");
+                sourceBuilder.AppendLine();
+                getTranslation = "Api.GetTranslation";
+            }
+            else if (pluginInfo?.IsValid == true)
+            {
+                getTranslation = $"{pluginInfo.ContextAccessor}.API.GetTranslation";
+            }
+
+            // Generate localization methods
             foreach (var ls in localizedStrings)
             {
                 // TODO: Add support for usedKeys
@@ -617,13 +621,13 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 }*/
 
                 GenerateDocComments(sourceBuilder, ls, tabString);
-                GenerateLocalizationMethod(sourceBuilder, ls, isCoreAssembly, pluginInfo, tabString);
+                GenerateLocalizationMethod(sourceBuilder, ls, getTranslation, tabString);
             }
 
             sourceBuilder.AppendLine("}");
 
             // Add source to context
-            spc.AddSource($"{ClassName}.{assemblyName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+            spc.AddSource($"{Constants.ClassName}.{assemblyName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
         }
 
         private static void GeneratedHeaderFromPath(StringBuilder sb, string xamlFilePath)
@@ -673,8 +677,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         private static void GenerateLocalizationMethod(
             StringBuilder sb,
             LocalizableString ls,
-            bool isCoreAssembly,
-            PluginClassInfo pluginInfo,
+            string getTranslation,
             string tabString)
         {
             sb.Append($"{tabString}public static string {ls.Key}(");
@@ -687,18 +690,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 ? $", {string.Join(", ", parameters.Select(p => p.Name))}"
                 : string.Empty;
 
-            if (isCoreAssembly)
+            if (!(string.IsNullOrEmpty(getTranslation)))
             {
-                var getTranslation = "InternationalizationManager.Instance.GetTranslation";
-                sb.AppendLine(parameters.Count > 0
-                    ? !ls.Format ? 
-                        $"string.Format({getTranslation}(\"{ls.Key}\"){formatArgs});"
-                        : $"string.Format(System.Globalization.CultureInfo.CurrentCulture, {getTranslation}(\"{ls.Key}\"){formatArgs});"
-                    : $"{getTranslation}(\"{ls.Key}\");");
-            }
-            else if (pluginInfo?.IsValid == true)
-            {
-                var getTranslation = $"{pluginInfo.ContextAccessor}.API.GetTranslation";
                 sb.AppendLine(parameters.Count > 0
                     ? !ls.Format ? 
                         $"string.Format({getTranslation}(\"{ls.Key}\"){formatArgs});"
