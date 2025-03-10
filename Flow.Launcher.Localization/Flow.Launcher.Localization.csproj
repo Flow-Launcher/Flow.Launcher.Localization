@@ -16,7 +16,7 @@
     <ProjectReference Include="..\Flow.Launcher.Localization.Analyzers\Flow.Launcher.Localization.Analyzers.csproj">
       <PrivateAssets>All</PrivateAssets>
     </ProjectReference>
-    <ProjectReference Include="..\Flow.Launcher.Localization.Shared\Flow.Launcher.Localization.Shared.csproj" >
+    <ProjectReference Include="..\Flow.Launcher.Localization.Shared\Flow.Launcher.Localization.Shared.csproj">
       <PrivateAssets>All</PrivateAssets>
     </ProjectReference>
     <ProjectReference Include="..\Flow.Launcher.Localization.SourceGenerators\Flow.Launcher.Localization.SourceGenerators.csproj">
