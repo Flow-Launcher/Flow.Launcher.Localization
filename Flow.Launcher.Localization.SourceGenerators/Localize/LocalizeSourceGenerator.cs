@@ -465,8 +465,9 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             ImmutableArray<PluginClassInfo> pluginClasses,
             SourceProductionContext context)
         {
-            var nonNullExistClasses = pluginClasses.Where(p => p != null && p.PropertyName != null).ToArray();
-            if (nonNullExistClasses.Length == 0)
+            // If p is null, this class does not implement IPluginI18n
+            var iPluginI18nClasses = pluginClasses.Where(p => p != null).ToArray();
+            if (iPluginI18nClasses.Length == 0)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     SourceGeneratorDiagnostics.CouldNotFindPluginEntryClass,
@@ -475,7 +476,24 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 return null;
             }
 
-            foreach (var pluginClass in nonNullExistClasses)
+            // If p.PropertyName is null, this class does not have PluginInitContext property
+            var iPluginI18nClassesWithContext = iPluginI18nClasses.Where(p => p.PropertyName != null).ToArray();
+            if (iPluginI18nClassesWithContext.Length == 0)
+            {
+                foreach (var pluginClass in iPluginI18nClasses)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        SourceGeneratorDiagnostics.CouldNotFindContextProperty,
+                        pluginClass.Location,
+                        pluginClass.ClassName
+                    ));
+                }
+                return null;
+            }
+
+            // Rest classes have implemented IPluginI18n and have PluginInitContext property
+            // Check if the property is valid
+            foreach (var pluginClass in iPluginI18nClassesWithContext)
             {
                 if (pluginClass.IsValid == true)
                 {
