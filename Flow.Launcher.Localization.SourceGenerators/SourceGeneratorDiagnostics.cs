@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Flow.Launcher.Localization.Shared;
+using Microsoft.CodeAnalysis;
 
 namespace Flow.Launcher.Localization.SourceGenerators
 {
@@ -16,7 +17,7 @@ namespace Flow.Launcher.Localization.SourceGenerators
         public static readonly DiagnosticDescriptor CouldNotFindPluginEntryClass = new DiagnosticDescriptor(
             "FLSG0002",
             "Could not find the main class of plugin",
-            "Could not find the main class of your plugin. It must implement IPluginI18n.",
+            $"Could not find the main class of your plugin. It must implement {Constants.PluginInterfaceName}.",
             "Localization",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true
@@ -25,7 +26,7 @@ namespace Flow.Launcher.Localization.SourceGenerators
         public static readonly DiagnosticDescriptor CouldNotFindContextProperty = new DiagnosticDescriptor(
             "FLSG0003",
             "Could not find plugin context property",
-            "Could not find a property of type PluginInitContext in {0}. It must be a public static or internal static property of the main class of your plugin.",
+            $"Could not find a property of type {Constants.PluginContextTypeName} in {{0}}. It must be a public static or internal static property of the main class of your plugin.",
             "Localization",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true
@@ -61,7 +62,7 @@ namespace Flow.Launcher.Localization.SourceGenerators
         public static readonly DiagnosticDescriptor LocalizationKeyUnused = new DiagnosticDescriptor(
             "FLSG0007",
             "Localization key is unused",
-            "Method 'Localize.{0}' is never used",
+            $"Method '{Constants.ClassName}.{{0}}' is never used",
             "Localization",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true

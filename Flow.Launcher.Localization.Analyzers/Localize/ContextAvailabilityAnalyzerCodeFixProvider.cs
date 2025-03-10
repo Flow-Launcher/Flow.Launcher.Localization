@@ -2,6 +2,7 @@
 using System.Composition;
 using System.Linq;
 using System.Threading.Tasks;
+using Flow.Launcher.Localization.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -83,7 +84,7 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
 
         private static MemberDeclarationSyntax GetStaticContextPropertyDeclaration(string propertyName = "Context") =>
             SyntaxFactory.ParseMemberDeclaration(
-                $"internal static PluginInitContext {propertyName} {{ get; private set; }} = null!;"
+                $"internal static {Constants.PluginContextTypeName} {propertyName} {{ get; private set; }} = null!;"
             );
 
         private static Document GetFormattedDocument(CodeFixContext context, SyntaxNode root)

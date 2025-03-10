@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using Flow.Launcher.Localization.Shared;
+using Microsoft.CodeAnalysis;
 
 namespace Flow.Launcher.Localization.Analyzers
 {
@@ -7,7 +8,7 @@ namespace Flow.Launcher.Localization.Analyzers
         public static readonly DiagnosticDescriptor OldLocalizationApiUsed = new DiagnosticDescriptor(
             "FLAN0001",
             "Old localization API used",
-            "Use `Localize.{0}({1})` instead",
+            $"Use `{Constants.ClassName}.{{0}}({{1}})` instead",
             "Localization",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true
@@ -43,7 +44,7 @@ namespace Flow.Launcher.Localization.Analyzers
         public static readonly DiagnosticDescriptor ContextIsNotDeclared = new DiagnosticDescriptor(
             "FLAN0005",
             "Plugin context is not declared",
-            "Plugin context must be at least internal static property of type `PluginInitContext`",
+            $"Plugin context must be at least internal static property of type `{Constants.PluginContextTypeName}`",
             "Localization",
             DiagnosticSeverity.Error,
             isEnabledByDefault: true
