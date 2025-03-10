@@ -182,7 +182,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                     return _emptyLocalizableStrings;
                 }
 
-                var key = element.Attribute(xNs + Constants.KeyTag)?.Value; // "Key" attribute in xaml namespace
+                var key = element.Attribute(xNs + Constants.KeyAttribute)?.Value; // "Key" attribute in xaml namespace
                 var value = element.Value;
                 var comment = element.PreviousNode as XComment;
 

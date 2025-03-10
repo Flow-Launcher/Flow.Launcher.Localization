@@ -11,7 +11,7 @@ namespace Flow.Launcher.Localization.Shared
         public const string SystemPrefixUri = "clr-namespace:System;assembly=mscorlib";
         public const string XamlPrefixUri = "http://schemas.microsoft.com/winfx/2006/xaml";
         public const string XamlTag = "String";
-        public const string KeyTag = "Key";
+        public const string KeyAttribute = "Key";
 
         public static readonly Regex LanguagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
     }
