@@ -12,6 +12,11 @@ namespace Flow.Launcher.Localization.Shared
         public const string XamlPrefixUri = "http://schemas.microsoft.com/winfx/2006/xaml";
         public const string XamlTag = "String";
         public const string KeyAttribute = "Key";
+        public const string SummaryElementName = "summary";
+        public const string ParamElementName = "param";
+        public const string IndexAttribute = "index";
+        public const string NameAttribute = "name";
+        public const string TypeAttribute = "type";
 
         public static readonly Regex LanguagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
     }

@@ -2,6 +2,7 @@
 using System.Composition;
 using System.Linq;
 using System.Threading.Tasks;
+using Flow.Launcher.Localization.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -28,7 +29,7 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
 
             context.RegisterCodeFix(
                 CodeAction.Create(
-                    title: "Replace with 'Localize.localization_key(...args)'",
+                    title: $"Replace with '{Constants.ClassName}.localization_key(...args)'",
                     createChangedDocument: _ => Task.FromResult(FixOldTranslation(context, root, diagnostic)),
                     equivalenceKey: AnalyzerDiagnostics.OldLocalizationApiUsed.Id
                 ),
@@ -75,7 +76,7 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             CodeFixContext context, string translationKey, SyntaxNode root, InvocationExpressionSyntax invocationExpr
         ) {
             var newInvocationExpr = SyntaxFactory.ParseExpression(
-                $"Localize.{translationKey}()"
+                $"{Constants.ClassName}.{translationKey}()"
             );
 
             var newRoot = root.ReplaceNode(invocationExpr, newInvocationExpr);
@@ -104,7 +105,7 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             InvocationExpressionSyntax invocationExpr
         ) {
             var newArguments = string.Join(", ", argumentList.Skip(1).Select(a => a.Expression));
-            var newInnerInvocationExpr = SyntaxFactory.ParseExpression($"Localize.{translationKey2}({newArguments})");
+            var newInnerInvocationExpr = SyntaxFactory.ParseExpression($"{Constants.ClassName}.{translationKey2}({newArguments})");
 
             var newRoot = root.ReplaceNode(invocationExpr, newInnerInvocationExpr);
             return context.Document.WithSyntaxRoot(newRoot);

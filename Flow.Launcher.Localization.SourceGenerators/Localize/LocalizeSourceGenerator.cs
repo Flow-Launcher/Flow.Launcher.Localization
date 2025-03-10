@@ -355,14 +355,14 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             try
             {
                 var doc = XDocument.Parse($"<root>{comment.Value}</root>");
-                var summary = doc.Descendants("summary").FirstOrDefault()?.Value.Trim();
+                var summary = doc.Descendants(Constants.SummaryElementName).FirstOrDefault()?.Value.Trim();
 
                 // Update parameter names and types of the format string
-                foreach (var p in doc.Descendants("param"))
+                foreach (var p in doc.Descendants(Constants.ParamElementName))
                 {
-                    var index = int.TryParse(p.Attribute("index").Value, out var intValue) ? intValue : -1;
-                    var name = p.Attribute("name").Value;
-                    var type = p.Attribute("type").Value;
+                    var index = int.TryParse(p.Attribute(Constants.IndexAttribute).Value, out var intValue) ? intValue : -1;
+                    var name = p.Attribute(Constants.NameAttribute).Value;
+                    var type = p.Attribute(Constants.TypeAttribute).Value;
                     if (index >= 0 && index < parameters.Count)
                     {
                         if (!string.IsNullOrEmpty(name))
@@ -518,7 +518,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             return Location.Create(syntaxTree, classDeclaration.GetLocation().SourceSpan);
         }
 
-#endregion
+        #endregion
 
         #region Generate Source
 
