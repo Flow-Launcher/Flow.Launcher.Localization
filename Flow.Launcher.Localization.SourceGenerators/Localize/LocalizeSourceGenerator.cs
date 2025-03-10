@@ -103,11 +103,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var optimizationLevel = compilation.Options.OptimizationLevel;
             var useDI = configOptions.GetFLLUseDependencyInjection();
 
-            PluginClassInfo pluginInfo = null;
-            if (!useDI)
-            {
-                pluginInfo = GetValidPluginInfo(pluginClasses, spc);
-            }
+            var pluginInfo = GetValidPluginInfo(pluginClasses, spc, useDI);
             
             GenerateSource(
                 spc,
@@ -463,7 +459,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         private static PluginClassInfo GetValidPluginInfo(
             ImmutableArray<PluginClassInfo> pluginClasses,
-            SourceProductionContext context)
+            SourceProductionContext context,
+            bool useDI)
         {
             var nonNullExistClasses = pluginClasses.Where(p => p != null && p.PropertyName != null).ToArray();
             if (nonNullExistClasses.Length == 0)
@@ -472,6 +469,13 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                     SourceGeneratorDiagnostics.CouldNotFindPluginEntryClass,
                     Location.None
                 ));
+                return null;
+            }
+
+            // If we use dependency injection, we don't need to check if there's a valid plugin context
+            // And we also do not need to return the plugin info
+            if (useDI)
+            {
                 return null;
             }
 
