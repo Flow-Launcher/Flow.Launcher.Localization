@@ -1,41 +1,46 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <Version>0.0.1</Version>
-        <TargetFramework>netstandard2.0</TargetFramework>
-        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-        <RootNamespace>Flow.Launcher.Localization</RootNamespace>
+  <PropertyGroup>
+    <Version>0.0.1</Version>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <RootNamespace>Flow.Launcher.Localization</RootNamespace>
 
-        <IncludeBuildOutput>false</IncludeBuildOutput>
-        <DevelopmentDependency>true</DevelopmentDependency>
-        <NoPackageAnalysis>true</NoPackageAnalysis>
-        <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-    </PropertyGroup>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <NoPackageAnalysis>true</NoPackageAnalysis>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+  </PropertyGroup>
 
-    <ItemGroup>
-        <ProjectReference
-                Include="..\Flow.Launcher.Localization.Analyzers\Flow.Launcher.Localization.Analyzers.csproj"
-                PrivateAssets="All"
-        />
-        <ProjectReference
-                Include="..\Flow.Launcher.Localization.SourceGenerators\Flow.Launcher.Localization.SourceGenerators.csproj"
-                PrivateAssets="All"
-        />
-    </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Flow.Launcher.Localization.Analyzers\Flow.Launcher.Localization.Analyzers.csproj">
+      <PrivateAssets>All</PrivateAssets>
+    </ProjectReference>
+    <ProjectReference Include="..\Flow.Launcher.Localization.Shared\Flow.Launcher.Localization.Shared.csproj" >
+      <PrivateAssets>All</PrivateAssets>
+    </ProjectReference>
+    <ProjectReference Include="..\Flow.Launcher.Localization.SourceGenerators\Flow.Launcher.Localization.SourceGenerators.csproj">
+      <PrivateAssets>All</PrivateAssets>
+    </ProjectReference>
+  </ItemGroup>
 
-    <ItemGroup>
-        <None
-                Include="$(OutputPath)\Flow.Launcher.Localization.Analyzers.dll"
-                Pack="true"
-                PackagePath="analyzers/dotnet/cs"
-                Visible="false"
-        />
-        <None
-                Include="$(OutputPath)\Flow.Launcher.Localization.SourceGenerators.dll"
-                Pack="true"
-                PackagePath="analyzers/dotnet/cs"
-                Visible="false"
-        />
-    </ItemGroup>
+  <ItemGroup>
+    <None Include="$(OutputPath)\Flow.Launcher.Localization.Analyzers.dll">
+      <Pack>true</Pack>
+      <PackagePath>analyzers/dotnet/cs</PackagePath>
+      <Visible>false</Visible>
+    </None>
+    <None Include="$(OutputPath)\Flow.Launcher.Localization.Shared.dll">
+      <Pack>true</Pack>
+      <PackagePath>analyzers/dotnet/cs</PackagePath>
+      <Visible>false</Visible>
+    </None>
+    <None Include="$(OutputPath)\Flow.Launcher.Localization.SourceGenerators.dll">
+      <Pack>true</Pack>
+      <PackagePath>analyzers/dotnet/cs</PackagePath>
+      <Visible>false</Visible>
+    </None>
+    <None Include="build\Flow.Launcher.Localization.props" Pack="true" PackagePath="build" />
+  </ItemGroup>
 
 </Project>
