@@ -8,7 +8,7 @@ namespace Flow.Launcher.Localization.SourceGenerators
         public static readonly DiagnosticDescriptor CouldNotFindResourceDictionaries = new DiagnosticDescriptor(
             "FLSG0001",
             "Could not find resource dictionaries",
-            "Could not find resource dictionaries. There must be a file named [LANG].xaml file (for example, en.xaml), and it must be specified in <AdditionalFiles /> in your .csproj file.",
+            "Could not find resource dictionaries. There must be a `en.xaml` file under `Language` folder.",
             "Localization",
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true
