@@ -84,6 +84,15 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             ImmutableArray<AdditionalText> AdditionalTexts) data)
         {
             var xamlFiles = data.AdditionalTexts;
+            if (xamlFiles.Length == 0)
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(
+                    SourceGeneratorDiagnostics.CouldNotFindResourceDictionaries,
+                    Location.None
+                ));
+                return;
+            }
+
             var compilation = data.Item1.Compilation;
             var configOptions = data.Item1.Item1.ConfigOptionsProvider;
             var pluginClasses = data.Item1.Item1.Item1.PluginClassInfos;
