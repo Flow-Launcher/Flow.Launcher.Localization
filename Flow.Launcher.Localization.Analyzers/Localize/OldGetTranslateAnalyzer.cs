@@ -11,6 +11,8 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class OldGetTranslateAnalyzer : DiagnosticAnalyzer
     {
+        #region DiagnosticAnalyzer
+
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
             AnalyzerDiagnostics.OldLocalizationApiUsed
         );
@@ -22,29 +24,42 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             context.RegisterSyntaxNodeAction(AnalyzeNode, SyntaxKind.InvocationExpression);
         }
 
+        #endregion
+
+        #region Analyze Methods
+
         private static void AnalyzeNode(SyntaxNodeAnalysisContext context)
         {
             var invocationExpr = (InvocationExpressionSyntax)context.Node;
             var semanticModel = context.SemanticModel;
             var symbolInfo = semanticModel.GetSymbolInfo(invocationExpr);
 
+            // Check if the method is a format string call
             if (!(symbolInfo.Symbol is IMethodSymbol methodSymbol)) return;
 
-            if (IsFormatStringCall(methodSymbol) &&
-                GetFirstArgumentInvocationExpression(invocationExpr) is InvocationExpressionSyntax innerInvocationExpr)
+            // First branch: detect a call to string.Format containing a translate call anywhere in its arguments.
+            if (IsFormatStringCall(methodSymbol))
             {
-                if (!IsTranslateCall(semanticModel.GetSymbolInfo(innerInvocationExpr)) ||
-                    !(GetFirstArgumentStringValue(innerInvocationExpr) is string translationKey))
-                    return;
-
-                var diagnostic = Diagnostic.Create(
-                    AnalyzerDiagnostics.OldLocalizationApiUsed,
-                    invocationExpr.GetLocation(),
-                    translationKey,
-                    GetInvocationArguments(invocationExpr)
-                );
-                context.ReportDiagnostic(diagnostic);
+                var arguments = invocationExpr.ArgumentList.Arguments;
+                // Check all arguments is an invocation (i.e. a candidate for Context.API.GetTranslation(…))
+                for (int i = 0; i < arguments.Count; i++)
+                {
+                    if (GetArgumentInvocationExpression(invocationExpr, i) is InvocationExpressionSyntax innerInvocationExpr &&
+                        IsTranslateCall(semanticModel.GetSymbolInfo(innerInvocationExpr)) &&
+                        GetFirstArgumentStringValue(innerInvocationExpr) is string translationKey)
+                    {
+                        var diagnostic = Diagnostic.Create(
+                            AnalyzerDiagnostics.OldLocalizationApiUsed,
+                            invocationExpr.GetLocation(),
+                            translationKey,
+                            GetInvocationArguments(invocationExpr, i)
+                        );
+                        context.ReportDiagnostic(diagnostic);
+                        return;
+                    }
+                }
             }
+            // Second branch: direct translate call (outside of a Format call)
             else if (IsTranslateCall(methodSymbol) && GetFirstArgumentStringValue(invocationExpr) is string translationKey)
             {
                 if (IsParentFormatStringCall(semanticModel, invocationExpr)) return;
@@ -59,27 +74,42 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             }
         }
 
-        private static string GetInvocationArguments(InvocationExpressionSyntax invocationExpr) =>
-            string.Join(", ", invocationExpr.ArgumentList.Arguments.Skip(1));
+        #region Utils
 
-        private static bool IsParentFormatStringCall(SemanticModel semanticModel, SyntaxNode syntaxNode) =>
-            syntaxNode is InvocationExpressionSyntax invocationExpressionSyntax &&
-            invocationExpressionSyntax.Parent?.Parent?.Parent is SyntaxNode parent &&
-            IsFormatStringCall(semanticModel?.GetSymbolInfo(parent));
+        private static string GetInvocationArguments(InvocationExpressionSyntax invocationExpr, int translateArgIndex) =>
+            string.Join(", ", invocationExpr.ArgumentList.Arguments.Skip(translateArgIndex + 1));
 
-        private static bool IsFormatStringCall(SymbolInfo? symbolInfo) =>
-            symbolInfo is SymbolInfo info && IsFormatStringCall(info.Symbol as IMethodSymbol);
+        /// <summary>
+        /// Walk up the tree to see if we're already inside a Format call
+        /// </summary>
+        private static bool IsParentFormatStringCall(SemanticModel semanticModel, SyntaxNode syntaxNode)
+        {
+            var parent = syntaxNode.Parent;
+            while (parent != null)
+            {
+                if (parent is InvocationExpressionSyntax parentInvocation)
+                {
+                    var symbol = semanticModel.GetSymbolInfo(parentInvocation).Symbol as IMethodSymbol;
+                    if (IsFormatStringCall(symbol))
+                    {
+                        return true;
+                    }
+                }
+                parent = parent.Parent;
+            }
+            return false;
+        }
 
         private static bool IsFormatStringCall(IMethodSymbol methodSymbol) =>
-            methodSymbol?.Name is Constants.StringFormatMethodName &&
-            methodSymbol.ContainingType.ToDisplayString() is Constants.StringFormatTypeName;
+            methodSymbol?.Name == Constants.StringFormatMethodName &&
+            methodSymbol.ContainingType.ToDisplayString() == Constants.StringFormatTypeName;
 
-        private static InvocationExpressionSyntax GetFirstArgumentInvocationExpression(InvocationExpressionSyntax invocationExpr) =>
-            invocationExpr.ArgumentList.Arguments.FirstOrDefault()?.Expression as InvocationExpressionSyntax;
+        private static InvocationExpressionSyntax GetArgumentInvocationExpression(InvocationExpressionSyntax invocationExpr, int index) =>
+             invocationExpr.ArgumentList.Arguments[index].Expression as InvocationExpressionSyntax;
 
         private static bool IsTranslateCall(SymbolInfo symbolInfo) =>
             symbolInfo.Symbol is IMethodSymbol innerMethodSymbol &&
-            innerMethodSymbol.Name is Constants.OldLocalizationMethodName &&
+            innerMethodSymbol.Name == Constants.OldLocalizationMethodName &&
             Constants.OldLocalizationClasses.Contains(innerMethodSymbol.ContainingType.Name);
 
         private static bool IsTranslateCall(IMethodSymbol methodSymbol) =>
@@ -92,5 +122,9 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
                 return syntax.Token.ValueText;
             return null;
         }
+
+        #endregion
+
+        #endregion
     }
 }
