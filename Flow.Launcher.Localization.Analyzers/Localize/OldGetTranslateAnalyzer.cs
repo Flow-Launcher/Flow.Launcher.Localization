@@ -105,7 +105,7 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             methodSymbol.ContainingType.ToDisplayString() == Constants.StringFormatTypeName;
 
         private static InvocationExpressionSyntax GetArgumentInvocationExpression(InvocationExpressionSyntax invocationExpr, int index) =>
-             invocationExpr.ArgumentList.Arguments[index].Expression as InvocationExpressionSyntax;
+            invocationExpr.ArgumentList.Arguments[index].Expression as InvocationExpressionSyntax;
 
         private static bool IsTranslateCall(SymbolInfo symbolInfo) =>
             symbolInfo.Symbol is IMethodSymbol innerMethodSymbol &&
