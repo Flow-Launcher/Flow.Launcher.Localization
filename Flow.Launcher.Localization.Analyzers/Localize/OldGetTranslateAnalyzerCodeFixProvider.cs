@@ -14,6 +14,8 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(OldGetTranslateAnalyzerCodeFixProvider)), Shared]
     public class OldGetTranslateAnalyzerCodeFixProvider : CodeFixProvider
     {
+        #region CodeFixProvider
+
         public sealed override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(
             AnalyzerDiagnostics.OldLocalizationApiUsed.Id
         );
@@ -39,6 +41,10 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             );
         }
 
+        #endregion
+
+        #region Fix Methods
+
         private static Document FixOldTranslation(CodeFixContext context, SyntaxNode root, Diagnostic diagnostic)
         {
             var diagnosticSpan = diagnostic.Location.SourceSpan;
@@ -63,20 +69,19 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             return context.Document;
         }
 
+        #region Utils
 
         private static string GetTranslationKey(ExpressionSyntax syntax)
         {
-            if (
-                syntax is LiteralExpressionSyntax literalExpressionSyntax &&
-                literalExpressionSyntax.Token.Value is string translationKey
-            )
+            if (syntax is LiteralExpressionSyntax literalExpressionSyntax &&
+                literalExpressionSyntax.Token.Value is string translationKey)
                 return translationKey;
             return null;
         }
 
         private static Document FixOldTranslationWithoutStringFormat(
-            CodeFixContext context, string translationKey, SyntaxNode root, InvocationExpressionSyntax invocationExpr
-        ) {
+            CodeFixContext context, string translationKey, SyntaxNode root, InvocationExpressionSyntax invocationExpr)
+        {
             var newInvocationExpr = SyntaxFactory.ParseExpression(
                 $"{Constants.ClassName}.{translationKey}()"
             );
@@ -88,10 +93,8 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
 
         private static string GetTranslationKeyFromInnerInvocation(ExpressionSyntax syntax)
         {
-            if (
-                syntax is InvocationExpressionSyntax invocationExpressionSyntax &&
-                invocationExpressionSyntax.ArgumentList.Arguments.Count is 1
-            )
+            if (syntax is InvocationExpressionSyntax invocationExpressionSyntax &&
+                invocationExpressionSyntax.ArgumentList.Arguments.Count is 1)
             {
                 var firstArgument = invocationExpressionSyntax.ArgumentList.Arguments.First().Expression;
                 return GetTranslationKey(firstArgument);
@@ -104,13 +107,17 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             SeparatedSyntaxList<ArgumentSyntax> argumentList,
             string translationKey2,
             SyntaxNode root,
-            InvocationExpressionSyntax invocationExpr
-        ) {
+            InvocationExpressionSyntax invocationExpr)
+        {
             var newArguments = string.Join(", ", argumentList.Skip(1).Select(a => a.Expression));
             var newInnerInvocationExpr = SyntaxFactory.ParseExpression($"{Constants.ClassName}.{translationKey2}({newArguments})");
 
             var newRoot = root.ReplaceNode(invocationExpr, newInnerInvocationExpr);
             return context.Document.WithSyntaxRoot(newRoot);
         }
+
+        #endregion
+
+        #endregion
     }
 }
