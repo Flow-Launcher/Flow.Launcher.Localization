@@ -14,7 +14,9 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(OldGetTranslateAnalyzerCodeFixProvider)), Shared]
     public class OldGetTranslateAnalyzerCodeFixProvider : CodeFixProvider
     {
-        public sealed override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(AnalyzerDiagnostics.OldLocalizationApiUsed.Id);
+        public sealed override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(
+            AnalyzerDiagnostics.OldLocalizationApiUsed.Id
+        );
 
         public sealed override FixAllProvider GetFixAllProvider()
         {
