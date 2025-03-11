@@ -17,6 +17,8 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(ContextAvailabilityAnalyzerCodeFixProvider)), Shared]
     public class ContextAvailabilityAnalyzerCodeFixProvider : CodeFixProvider
     {
+        #region CodeFixProvider
+
         public sealed override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(
             AnalyzerDiagnostics.ContextIsAField.Id,
             AnalyzerDiagnostics.ContextIsNotStatic.Id,
@@ -82,21 +84,9 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             }
         }
 
-        private static MemberDeclarationSyntax GetStaticContextPropertyDeclaration(string propertyName = "Context") =>
-            SyntaxFactory.ParseMemberDeclaration(
-                $"internal static {Constants.PluginContextTypeName} {propertyName} {{ get; private set; }} = null!;"
-            );
+        #endregion
 
-        private static Document GetFormattedDocument(CodeFixContext context, SyntaxNode root)
-        {
-            var formattedRoot = Formatter.Format(
-                root,
-                Formatter.Annotation,
-                context.Document.Project.Solution.Workspace
-            );
-
-            return context.Document.WithSyntaxRoot(formattedRoot);
-        }
+        #region Fix Methods
 
         private static Document FixContextNotDeclared(CodeFixContext context, SyntaxNode root, TextSpan diagnosticSpan)
         {
@@ -160,6 +150,24 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             return GetFormattedDocument(context, newRoot);
         }
 
+        #region Utils
+
+        private static MemberDeclarationSyntax GetStaticContextPropertyDeclaration(string propertyName = "Context") =>
+            SyntaxFactory.ParseMemberDeclaration(
+                $"internal static {Constants.PluginContextTypeName} {propertyName} {{ get; private set; }} = null!;"
+            );
+
+        private static Document GetFormattedDocument(CodeFixContext context, SyntaxNode root)
+        {
+            var formattedRoot = Formatter.Format(
+                root,
+                Formatter.Annotation,
+                context.Document.Project.Solution.Workspace
+            );
+
+            return context.Document.WithSyntaxRoot(formattedRoot);
+        }
+
         private static PropertyDeclarationSyntax FixRestrictivePropertyModifiers(PropertyDeclarationSyntax propertyDeclaration)
         {
             var newModifiers = SyntaxFactory.TokenList();
@@ -185,5 +193,9 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
                 ?.AncestorsAndSelf()
                 .OfType<T>()
                 .First();
+
+        #endregion
+
+        #endregion
     }
 }
