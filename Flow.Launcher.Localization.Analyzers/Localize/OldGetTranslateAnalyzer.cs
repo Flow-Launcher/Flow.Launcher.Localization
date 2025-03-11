@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Linq;
+using Flow.Launcher.Localization.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -10,14 +11,9 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class OldGetTranslateAnalyzer : DiagnosticAnalyzer
     {
-        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-            ImmutableArray.Create(AnalyzerDiagnostics.OldLocalizationApiUsed);
-
-        private static readonly string[] oldLocalizationClasses = { "IPublicAPI", "Internationalization" };
-        private const string OldLocalizationMethodName = "GetTranslation";
-
-        private const string StringFormatMethodName = "Format";
-        private const string StringFormatTypeName = "string";
+        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
+            AnalyzerDiagnostics.OldLocalizationApiUsed
+        );
 
         public override void Initialize(AnalysisContext context)
         {
@@ -75,20 +71,20 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             symbolInfo is SymbolInfo info && IsFormatStringCall(info.Symbol as IMethodSymbol);
 
         private static bool IsFormatStringCall(IMethodSymbol methodSymbol) =>
-            methodSymbol?.Name is StringFormatMethodName &&
-            methodSymbol.ContainingType.ToDisplayString() is StringFormatTypeName;
+            methodSymbol?.Name is Constants.StringFormatMethodName &&
+            methodSymbol.ContainingType.ToDisplayString() is Constants.StringFormatTypeName;
 
         private static InvocationExpressionSyntax GetFirstArgumentInvocationExpression(InvocationExpressionSyntax invocationExpr) =>
             invocationExpr.ArgumentList.Arguments.FirstOrDefault()?.Expression as InvocationExpressionSyntax;
 
         private static bool IsTranslateCall(SymbolInfo symbolInfo) =>
             symbolInfo.Symbol is IMethodSymbol innerMethodSymbol &&
-            innerMethodSymbol.Name is OldLocalizationMethodName &&
-            oldLocalizationClasses.Contains(innerMethodSymbol.ContainingType.Name);
+            innerMethodSymbol.Name is Constants.OldLocalizationMethodName &&
+            Constants.OldLocalizationClasses.Contains(innerMethodSymbol.ContainingType.Name);
 
         private static bool IsTranslateCall(IMethodSymbol methodSymbol) =>
-            methodSymbol?.Name is OldLocalizationMethodName &&
-            oldLocalizationClasses.Contains(methodSymbol.ContainingType.Name);
+            methodSymbol?.Name is Constants.OldLocalizationMethodName &&
+            Constants.OldLocalizationClasses.Contains(methodSymbol.ContainingType.Name);
 
         private static string GetFirstArgumentStringValue(InvocationExpressionSyntax invocationExpr)
         {

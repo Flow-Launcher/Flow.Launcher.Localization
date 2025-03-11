@@ -17,7 +17,11 @@ namespace Flow.Launcher.Localization.Shared
         public const string IndexAttribute = "index";
         public const string NameAttribute = "name";
         public const string TypeAttribute = "type";
+        public const string OldLocalizationMethodName = "GetTranslation";
+        public const string StringFormatMethodName = "Format";
+        public const string StringFormatTypeName = "string";
 
         public static readonly Regex LanguagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
+        public static readonly string[] OldLocalizationClasses = { "IPublicAPI", "Internationalization" };
     }
 }
