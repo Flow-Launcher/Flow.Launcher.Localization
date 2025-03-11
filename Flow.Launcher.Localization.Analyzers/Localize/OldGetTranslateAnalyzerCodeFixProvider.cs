@@ -52,8 +52,8 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             if (root is null) return context.Document;
 
             var invocationExpr = root
-                ?.FindToken(diagnosticSpan.Start).Parent
-                ?.AncestorsAndSelf()
+                .FindToken(diagnosticSpan.Start).Parent
+                .AncestorsAndSelf()
                 .OfType<InvocationExpressionSyntax>()
                 .FirstOrDefault();
 
