@@ -39,7 +39,7 @@ jobs:
     # Get package version
     - name: Get Package Version
       run: |
-        $version = [system.diagnostics.fileversioninfo]::getversioninfo("Flow.Launcher.Localization\bin\Release\netstandard2.0\Flow.Launcher.Localization.dll").productversion
+        $version = [system.diagnostics.fileversioninfo]::getversioninfo("Flow.Launcher.Localization\bin\Release\netstandard2.0\Flow.Launcher.Localization.dll").fileversion
         echo "release_version=$version" | out-file -filepath $env:github_env -encoding utf-8 -append
 
     # Execute all unit tests in the solution
