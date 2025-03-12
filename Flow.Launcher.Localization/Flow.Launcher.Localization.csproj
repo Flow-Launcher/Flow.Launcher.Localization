@@ -1,15 +1,32 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>0.0.1</Version>
     <TargetFramework>netstandard2.0</TargetFramework>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <RootNamespace>Flow.Launcher.Localization</RootNamespace>
-
+    <AssemblyName>Flow.Launcher.Localization</AssemblyName>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <DevelopmentDependency>true</DevelopmentDependency>
     <NoPackageAnalysis>true</NoPackageAnalysis>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Version>0.0.1</Version>
+    <PackageVersion>0.0.1</PackageVersion>
+    <AssemblyVersion>0.0.1</AssemblyVersion>
+    <FileVersion>0.0.1</FileVersion>
+    <PackageId>Flow.Launcher.Localization</PackageId>
+    <Title>Flow Launcher Localization Toolkit</Title>
+    <Description>Localization toolkit for Flow Launcher and its plugins</Description>
+    <Authors>Flow-Launcher</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/Flow-Launcher/Flow.Launcher.Localization</RepositoryUrl>
+    <PackageDescription>Localization toolkit for Flow Launcher and its plugins</PackageDescription>
+    <PackageTags>localization-tool; localization-toolkit; flow-launcher; flow-launcher-plugins; flowlauncher; localization-tools; flow-launcher-plugin</PackageTags>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -39,6 +56,10 @@
       <Pack>true</Pack>
       <PackagePath>analyzers/dotnet/cs</PackagePath>
       <Visible>false</Visible>
+    </None>
+    <None Include="..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
     </None>
     <None Include="build\Flow.Launcher.Localization.props" Pack="true" PackagePath="build" />
   </ItemGroup>
