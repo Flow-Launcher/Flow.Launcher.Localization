@@ -45,7 +45,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 .Collect()
                 .SelectMany((files, _) => files);
 
-            // TODO: Add support for usedKeys
             var invocationKeys = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     predicate: (n, _) => n is InvocationExpressionSyntax,
@@ -100,7 +99,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var localizedStrings = data.Item1.Item1.Item1.Item1.LocalizableStrings;
 
             var assemblyName = compilation.AssemblyName ?? Constants.DefaultNamespace;
-            var optimizationLevel = compilation.Options.OptimizationLevel;
             var useDI = configOptions.GetFLLUseDependencyInjection();
 
             var pluginInfo = GetValidPluginInfo(pluginClasses, spc, useDI);
@@ -109,7 +107,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 spc,
                 xamlFiles[0],
                 localizedStrings,
-                optimizationLevel,
                 assemblyName,
                 useDI,
                 pluginInfo,
@@ -383,7 +380,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         #region Get Used Localization Keys
 
-        // TODO: Add support for usedKeys
         private static string GetLocalizationKeyFromInvocation(GeneratorSyntaxContext context, CancellationToken ct)
         {
             if (ct.IsCancellationRequested)
@@ -548,28 +544,22 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             SourceProductionContext spc,
             AdditionalText xamlFile,
             ImmutableArray<LocalizableString> localizedStrings,
-            OptimizationLevel optimizationLevel,
             string assemblyName,
             bool useDI,
             PluginClassInfo pluginInfo,
             IEnumerable<string> usedKeys)
         {
-            // Get unusedKeys if we need to optimize
-            IEnumerable<string> unusedKeys = new List<string>();
-            if (optimizationLevel == OptimizationLevel.Release)
-            {
-                unusedKeys = localizedStrings
+            // Report unusedKeys
+            var unusedKeys = localizedStrings
                     .Select(ls => ls.Key)
                     .ToImmutableHashSet()
                     .Except(usedKeys);
-
-                foreach (var key in unusedKeys)
-                {
-                    spc.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.LocalizationKeyUnused,
-                        Location.None,
-                        key));
-                }
+            foreach (var key in unusedKeys)
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(
+                    SourceGeneratorDiagnostics.LocalizationKeyUnused,
+                    Location.None,
+                    key));
             }
 
             var sourceBuilder = new StringBuilder();
@@ -636,12 +626,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             // Generate localization methods
             foreach (var ls in localizedStrings)
             {
-                // TODO: Add support for usedKeys
-                /*if (unusedKeys.Contains(ls.Key))
-                {
-                    continue;
-                }*/
-
                 GenerateDocComments(sourceBuilder, ls, tabString);
                 GenerateLocalizationMethod(sourceBuilder, ls, getTranslation, tabString);
             }
