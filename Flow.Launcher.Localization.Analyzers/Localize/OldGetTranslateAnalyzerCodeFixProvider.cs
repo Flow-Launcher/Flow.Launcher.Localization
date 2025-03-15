@@ -14,6 +14,8 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(OldGetTranslateAnalyzerCodeFixProvider)), Shared]
     public class OldGetTranslateAnalyzerCodeFixProvider : CodeFixProvider
     {
+        #region CodeFixProvider
+
         public sealed override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(
             AnalyzerDiagnostics.OldLocalizationApiUsed.Id
         );
@@ -39,44 +41,63 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             );
         }
 
+        #endregion
+
+        #region Fix Methods
+
         private static Document FixOldTranslation(CodeFixContext context, SyntaxNode root, Diagnostic diagnostic)
         {
             var diagnosticSpan = diagnostic.Location.SourceSpan;
 
-            var invocationExpr = root
-                ?.FindToken(diagnosticSpan.Start).Parent
-                ?.AncestorsAndSelf()
-                .OfType<InvocationExpressionSyntax>()
-                .First();
+            if (root is null) return context.Document;
 
-            if (invocationExpr is null || root is null) return context.Document;
+            var invocationExpr = root
+                .FindToken(diagnosticSpan.Start).Parent
+                .AncestorsAndSelf()
+                .OfType<InvocationExpressionSyntax>()
+                .FirstOrDefault();
+
+            if (invocationExpr is null) return context.Document;
 
             var argumentList = invocationExpr.ArgumentList.Arguments;
-            var argument = argumentList.First().Expression;
 
-            if (GetTranslationKey(argument) is string translationKey)
-                return FixOldTranslationWithoutStringFormat(context, translationKey, root, invocationExpr);
+            // Loop through the arguments to find the translation key.
+            for (int i = 0; i < argumentList.Count; i++)
+            {
+                var argument = argumentList[i].Expression;
 
-            if (GetTranslationKeyFromInnerInvocation(argument) is string translationKeyInside)
-                return FixOldTranslationWithStringFormat(context, argumentList, translationKeyInside, root, invocationExpr);
+                // Case 1: The argument is a literal (direct GetTranslation("key"))
+                if (GetTranslationKey(argument) is string translationKey)
+                    return FixOldTranslationWithoutStringFormat(context, translationKey, root, invocationExpr);
+
+                // Case 2: The argument is itself an invocation (nested GetTranslation)
+                if (GetTranslationKeyFromInnerInvocation(argument) is string translationKeyInside)
+                {
+                    // If there are arguments following this translation call, treat as a Format call.
+                    if (i < argumentList.Count - 1)
+                        return FixOldTranslationWithStringFormat(context, argumentList, translationKeyInside, root, invocationExpr, i);
+
+                    // Otherwise, treat it as a direct translation call.
+                    return FixOldTranslationWithoutStringFormat(context, translationKeyInside, root, invocationExpr);
+                }
+            }
 
             return context.Document;
         }
 
+        #region Utils
 
         private static string GetTranslationKey(ExpressionSyntax syntax)
         {
-            if (
-                syntax is LiteralExpressionSyntax literalExpressionSyntax &&
-                literalExpressionSyntax.Token.Value is string translationKey
-            )
+            if (syntax is LiteralExpressionSyntax literalExpressionSyntax &&
+                literalExpressionSyntax.Token.Value is string translationKey)
                 return translationKey;
             return null;
         }
 
         private static Document FixOldTranslationWithoutStringFormat(
-            CodeFixContext context, string translationKey, SyntaxNode root, InvocationExpressionSyntax invocationExpr
-        ) {
+            CodeFixContext context, string translationKey, SyntaxNode root, InvocationExpressionSyntax invocationExpr)
+        {
             var newInvocationExpr = SyntaxFactory.ParseExpression(
                 $"{Constants.ClassName}.{translationKey}()"
             );
@@ -88,10 +109,8 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
 
         private static string GetTranslationKeyFromInnerInvocation(ExpressionSyntax syntax)
         {
-            if (
-                syntax is InvocationExpressionSyntax invocationExpressionSyntax &&
-                invocationExpressionSyntax.ArgumentList.Arguments.Count is 1
-            )
+            if (syntax is InvocationExpressionSyntax invocationExpressionSyntax &&
+                invocationExpressionSyntax.ArgumentList.Arguments.Count == 1)
             {
                 var firstArgument = invocationExpressionSyntax.ArgumentList.Arguments.First().Expression;
                 return GetTranslationKey(firstArgument);
@@ -104,13 +123,19 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             SeparatedSyntaxList<ArgumentSyntax> argumentList,
             string translationKey2,
             SyntaxNode root,
-            InvocationExpressionSyntax invocationExpr
-        ) {
-            var newArguments = string.Join(", ", argumentList.Skip(1).Select(a => a.Expression));
+            InvocationExpressionSyntax invocationExpr,
+            int translationArgIndex)
+        {
+            // Skip all arguments before and including the translation call
+            var newArguments = string.Join(", ", argumentList.Skip(translationArgIndex + 1).Select(a => a.Expression));
             var newInnerInvocationExpr = SyntaxFactory.ParseExpression($"{Constants.ClassName}.{translationKey2}({newArguments})");
 
             var newRoot = root.ReplaceNode(invocationExpr, newInnerInvocationExpr);
             return context.Document.WithSyntaxRoot(newRoot);
         }
+
+        #endregion
+
+        #endregion
     }
 }
