@@ -10,12 +10,12 @@ namespace Flow.Launcher.Localization.Shared
         public bool IsStatic { get; }
         public bool IsPrivate { get; }
         public bool IsProtected { get; }
-        public Location CodeFixLocatioin { get; }
+        public Location CodeFixLocation { get; }
 
         public string ContextAccessor => $"{ClassName}.{PropertyName}";
         public bool IsValid => PropertyName != null && IsStatic && (!IsPrivate) && (!IsProtected);
 
-        public PluginClassInfo(Location location, string className, string propertyName, bool isStatic, bool isPrivate, bool isProtected, Location codeFixLocatioin)
+        public PluginClassInfo(Location location, string className, string propertyName, bool isStatic, bool isPrivate, bool isProtected, Location codeFixLocation)
         {
             Location = location;
             ClassName = className;
@@ -23,7 +23,7 @@ namespace Flow.Launcher.Localization.Shared
             IsStatic = isStatic;
             IsPrivate = isPrivate;
             IsProtected = isProtected;
-            CodeFixLocatioin = codeFixLocatioin;
+            CodeFixLocation = codeFixLocation;
         }
     }
 }

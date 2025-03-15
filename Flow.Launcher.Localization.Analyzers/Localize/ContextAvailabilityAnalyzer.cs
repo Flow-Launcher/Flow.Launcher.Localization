@@ -57,7 +57,7 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         AnalyzerDiagnostics.ContextIsNotStatic,
-                        pluginClassInfo.CodeFixLocatioin
+                        pluginClassInfo.CodeFixLocation
                     ));
                     return;
                 }
@@ -66,7 +66,7 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
                 {
                     context.ReportDiagnostic(Diagnostic.Create(
                         AnalyzerDiagnostics.ContextAccessIsTooRestrictive,
-                        pluginClassInfo.CodeFixLocatioin
+                        pluginClassInfo.CodeFixLocation
                     ));
                     return;
                 }
