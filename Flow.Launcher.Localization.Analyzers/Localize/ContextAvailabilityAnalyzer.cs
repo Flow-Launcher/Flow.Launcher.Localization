@@ -11,6 +11,8 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public class ContextAvailabilityAnalyzer : DiagnosticAnalyzer
     {
+        #region DiagnosticAnalyzer
+
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(
             AnalyzerDiagnostics.ContextIsAField,
             AnalyzerDiagnostics.ContextIsNotStatic,
@@ -25,47 +27,55 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
             context.RegisterSyntaxNodeAction(AnalyzeNode, SyntaxKind.ClassDeclaration);
         }
 
+        #endregion
+
+        #region Analyze Methods
+
         private static void AnalyzeNode(SyntaxNodeAnalysisContext context)
         {
             var configOptions = context.Options.AnalyzerConfigOptionsProvider;
             var useDI = configOptions.GetFLLUseDependencyInjection();
-
-            // If we use dependency injection, we don't need to check for this context property
-            if (useDI) return;
-
-            var classDeclaration = (ClassDeclarationSyntax)context.Node;
-            var semanticModel = context.SemanticModel;
-            var classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
-
-            if (!IsPluginEntryClass(classSymbol)) return;
-
-            var contextProperty = classDeclaration.Members.OfType<PropertyDeclarationSyntax>()
-                .Select(p => semanticModel.GetDeclaredSymbol(p))
-                .FirstOrDefault(p => p?.Type.Name is Constants.PluginContextTypeName);
-
-            if (contextProperty != null)
+            if (useDI)
             {
-                if (!contextProperty.IsStatic)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        AnalyzerDiagnostics.ContextIsNotStatic,
-                        contextProperty.DeclaringSyntaxReferences[0].GetSyntax().GetLocation()
-                    ));
-                    return;
-                }
-
-                if (contextProperty.DeclaredAccessibility is Accessibility.Private || contextProperty.DeclaredAccessibility is Accessibility.Protected)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        AnalyzerDiagnostics.ContextAccessIsTooRestrictive,
-                        contextProperty.DeclaringSyntaxReferences[0].GetSyntax().GetLocation()
-                    ));
-                    return;
-                }
-
+                // If we use dependency injection, we don't need to check for this context property
                 return;
             }
 
+            var classDeclaration = (ClassDeclarationSyntax)context.Node;
+            var semanticModel = context.SemanticModel;
+            var pluginClassInfo = Helper.GetPluginClassInfo(classDeclaration, semanticModel, context.CancellationToken);
+            if (pluginClassInfo == null)
+            {
+                // Cannot find class that implements IPluginI18n
+                return;
+            }
+
+            // Context property is found, check if it's a valid property
+            if (pluginClassInfo.PropertyName != null)
+            {
+                if (!pluginClassInfo.IsStatic)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        AnalyzerDiagnostics.ContextIsNotStatic,
+                        pluginClassInfo.CodeFixLocation
+                    ));
+                    return;
+                }
+
+                if (pluginClassInfo.IsPrivate || pluginClassInfo.IsProtected)
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        AnalyzerDiagnostics.ContextAccessIsTooRestrictive,
+                        pluginClassInfo.CodeFixLocation
+                    ));
+                    return;
+                }
+
+                // If the context property is valid, we don't need to check for anything else
+                return;
+            }
+
+            // Context property is not found, check if it's declared as a field
             var fieldDeclaration = classDeclaration.Members
                 .OfType<FieldDeclarationSyntax>()
                 .SelectMany(f => f.Declaration.Variables)
@@ -75,7 +85,6 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
                 ?.DeclaringSyntaxReferences[0]
                 .GetSyntax()
                 .FirstAncestorOrSelf<FieldDeclarationSyntax>();
-
             if (parentSyntax != null)
             {
                 context.ReportDiagnostic(Diagnostic.Create(
@@ -85,13 +94,13 @@ namespace Flow.Launcher.Localization.Analyzers.Localize
                 return;
             }
 
+            // Context property is not found, report an error
             context.ReportDiagnostic(Diagnostic.Create(
                 AnalyzerDiagnostics.ContextIsNotDeclared,
                 classDeclaration.Identifier.GetLocation()
             ));
         }
 
-        private static bool IsPluginEntryClass(INamedTypeSymbol namedTypeSymbol) =>
-            namedTypeSymbol?.Interfaces.Any(i => i.Name == Constants.PluginInterfaceName) ?? false;
+        #endregion
     }
 }

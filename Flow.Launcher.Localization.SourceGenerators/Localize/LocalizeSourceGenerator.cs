@@ -7,7 +7,6 @@ using System.Threading;
 using System.Xml.Linq;
 using Flow.Launcher.Localization.Shared;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
@@ -56,7 +55,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var pluginClasses = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     predicate: (n, _) => n is ClassDeclarationSyntax,
-                    transform: GetPluginClassInfo)
+                    transform: (c, t) => Helper.GetPluginClassInfo((ClassDeclarationSyntax)c.Node, c.SemanticModel, t))
                 .Where(info => info != null)
                 .Collect();
 
@@ -424,35 +423,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         #region Get Plugin Class Info
 
-        private static PluginClassInfo GetPluginClassInfo(GeneratorSyntaxContext context, CancellationToken ct)
-        {
-            var classDecl = (ClassDeclarationSyntax)context.Node;
-            var location = GetLocation(context.SemanticModel.SyntaxTree, classDecl);
-            if (!classDecl.BaseList?.Types.Any(t => t.Type.ToString() == Constants.PluginInterfaceName) ?? true)
-            {
-                // Cannot find class that implements IPluginI18n
-                return null;
-            }
-
-            var property = classDecl.Members
-                .OfType<PropertyDeclarationSyntax>()
-                .FirstOrDefault(p => p.Type.ToString() == Constants.PluginContextTypeName);
-            if (property is null)
-            {
-                // Cannot find context
-                return new PluginClassInfo(location, classDecl.Identifier.Text, null, false, false, false);
-            }
-
-            var modifiers = property.Modifiers;
-            return new PluginClassInfo(
-                location,
-                classDecl.Identifier.Text,
-                property.Identifier.Text,
-                modifiers.Any(SyntaxKind.StaticKeyword),
-                modifiers.Any(SyntaxKind.PrivateKeyword),
-                modifiers.Any(SyntaxKind.ProtectedKeyword));
-        }
-
         private static PluginClassInfo GetValidPluginInfo(
             ImmutableArray<PluginClassInfo> pluginClasses,
             SourceProductionContext context,
@@ -529,11 +499,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             }
 
             return null;
-        }
-
-        private static Location GetLocation(SyntaxTree syntaxTree, CSharpSyntaxNode classDeclaration)
-        {
-            return Location.Create(syntaxTree, classDeclaration.GetLocation().SourceSpan);
         }
 
         #endregion
@@ -753,29 +718,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 Value = value;
                 Summary = summary;
                 Params = @params;
-            }
-        }
-
-        public class PluginClassInfo
-        {
-            public Location Location { get; }
-            public string ClassName { get; }
-            public string PropertyName { get; }
-            public bool IsStatic { get; }
-            public bool IsPrivate { get; }
-            public bool IsProtected { get; }
-
-            public string ContextAccessor => $"{ClassName}.{PropertyName}";
-            public bool IsValid => PropertyName != null && IsStatic && (!IsPrivate) && (!IsProtected);
-
-            public PluginClassInfo(Location location, string className, string propertyName, bool isStatic, bool isPrivate, bool isProtected)
-            {
-                Location = location;
-                ClassName = className;
-                PropertyName = propertyName;
-                IsStatic = isStatic;
-                IsPrivate = isPrivate;
-                IsProtected = isProtected;
             }
         }
 
