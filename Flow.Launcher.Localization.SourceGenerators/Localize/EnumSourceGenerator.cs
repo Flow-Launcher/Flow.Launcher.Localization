@@ -6,6 +6,7 @@ using System.Text;
 using Flow.Launcher.Localization.Shared;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Flow.Launcher.Localization.SourceGenerators.Localize
@@ -36,9 +37,18 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 .Where(ed => ed.AttributeLists.Count > 0)
                 .Collect();
 
+            var pluginClasses = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    predicate: (n, _) => n is ClassDeclarationSyntax,
+                    transform: (c, t) => Helper.GetPluginClassInfo((ClassDeclarationSyntax)c.Node, c.SemanticModel, t))
+                .Where(info => info != null)
+                .Collect();
+
             var compilation = context.CompilationProvider;
 
-            var compilationEnums = enumDeclarations.Combine(compilation);
+            var configOptions = context.AnalyzerConfigOptionsProvider;
+
+            var compilationEnums = enumDeclarations.Combine(pluginClasses).Combine(configOptions).Combine(compilation);
 
             context.RegisterSourceOutput(compilationEnums, Execute);
         }
@@ -49,14 +59,24 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         /// <param name="spc">The source production context.</param>
         /// <param name="data">The provided data.</param>
         private void Execute(SourceProductionContext spc,
-            (ImmutableArray<EnumDeclarationSyntax> Enums, Compilation Compilation) data)
+            (((ImmutableArray<EnumDeclarationSyntax> EnumsDeclarations,
+            ImmutableArray<PluginClassInfo> PluginClassInfos),
+            AnalyzerConfigOptionsProvider ConfigOptionsProvider),
+            Compilation Compilation) data)
         {
-            var enums = data.Enums;
             var compilation = data.Compilation;
+            var configOptions = data.Item1.ConfigOptionsProvider;
+            var pluginClasses = data.Item1.Item1.PluginClassInfos;
+            var enumsDeclarations = data.Item1.Item1.EnumsDeclarations;
 
             var assemblyName = compilation.AssemblyName ?? Constants.DefaultNamespace;
+            var useDI = configOptions.GetFLLUseDependencyInjection();
 
-            foreach (var enumDeclaration in enums.Distinct())
+            var pluginInfo = PluginInfoHelper.GetValidPluginInfoAndReportDiagnostic(pluginClasses, spc, useDI);
+
+            if (pluginInfo == null) return;
+
+            foreach (var enumDeclaration in enumsDeclarations.Distinct())
             {
                 var semanticModel = compilation.GetSemanticModel(enumDeclaration.SyntaxTree);
                 var enumSymbol = semanticModel.GetDeclaredSymbol(enumDeclaration) as INamedTypeSymbol;
@@ -65,7 +85,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 if (enumSymbol?.GetAttributes().Any(ad =>
                     ad.AttributeClass?.Name == Constants.EnumLocalizeAttributeName) ?? false)
                 {
-                    GenerateSource(spc, enumSymbol, assemblyName);
+                    GenerateSource(spc, enumSymbol, useDI, pluginInfo, assemblyName);
                 }
             }
         }
@@ -74,7 +94,12 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         #region Generate Source
 
-        private void GenerateSource(SourceProductionContext spc, INamedTypeSymbol enumSymbol, string assemblyName)
+        private void GenerateSource(
+            SourceProductionContext spc,
+            INamedTypeSymbol enumSymbol,
+            bool useDI,
+            PluginClassInfo pluginInfo,
+            string assemblyName)
         {
             var enumFullName = enumSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var enumDataClassName = $"{enumSymbol.Name}{Constants.EnumLocalizeClassSuffix}";
@@ -129,6 +154,20 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"{tabString}public string LocalizationValue {{ get; set; }}");
             sourceBuilder.AppendLine();
 
+            // Generate API instance
+            string getTranslation = null;
+            if (useDI)
+            {
+                sourceBuilder.AppendLine($"{tabString}private static Flow.Launcher.Plugin.IPublicAPI? api = null;");
+                sourceBuilder.AppendLine($"{tabString}private static Flow.Launcher.Plugin.IPublicAPI Api => api ??= CommunityToolkit.Mvvm.DependencyInjection.Ioc.Default.GetRequiredService<Flow.Launcher.Plugin.IPublicAPI>();");
+                sourceBuilder.AppendLine();
+                getTranslation = "Api.GetTranslation";
+            }
+            else if (pluginInfo?.IsValid == true)
+            {
+                getTranslation = $"{pluginInfo.ContextAccessor}.API.GetTranslation";
+            }
+
             // Generate GetValues method
             sourceBuilder.AppendLine($"{tabString}/// <summary>");
             sourceBuilder.AppendLine($"{tabString}/// Get all values of <see cref=\"{enumFullName}\"/>");
@@ -141,19 +180,19 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             if (enumFields.Length == 0) return;
             foreach (var enumField in enumFields)
             {
-                GenerateEnumField(sourceBuilder, enumField, enumName, tabString);
+                GenerateEnumField(sourceBuilder, getTranslation, enumField, enumName, tabString);
             }
             sourceBuilder.AppendLine($"{tabString}{tabString}}};");
             sourceBuilder.AppendLine($"{tabString}}}");
             sourceBuilder.AppendLine();
 
             // Generate UpdateLabels method
-            GenerateUpdateLabelsMethod(sourceBuilder, enumDataClassName, tabString);
+            GenerateUpdateLabelsMethod(sourceBuilder, getTranslation, enumDataClassName, tabString);
 
             sourceBuilder.AppendLine($"}}");
 
             // Add source to context
-            spc.AddSource($"{Constants.ClassName}.{enumNamespace}.{enumDataClassName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+            spc.AddSource($"{Constants.ClassName}.{assemblyName}.{enumNamespace}.{enumDataClassName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
         }
 
         private static void GeneratedHeaderFromPath(StringBuilder sb, string enumFullName)
@@ -170,15 +209,19 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             }
         }
 
-        private static void GenerateEnumField(StringBuilder sb, EnumField enumField, string enumName, string tabString)
+        private static void GenerateEnumField(
+            StringBuilder sb,
+            string getTranslation,
+            EnumField enumField,
+            string enumName,
+            string tabString)
         {
             sb.AppendLine($"{tabString}{tabString}{tabString}new()");
             sb.AppendLine($"{tabString}{tabString}{tabString}{{");
             sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}Value = {enumName}.{enumField.EnumFieldName},");
             if (enumField.UseLocalizationKey)
             {
-                // TODO
-                sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}Display = Main.Context.API.GetTranslation(\"{enumField.LocalizationKey}\"),");
+                sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}Display = {getTranslation}(\"{enumField.LocalizationKey}\"),");
                 sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}LocalizationKey = \"{enumField.LocalizationKey}\",");
             }
             else
@@ -192,7 +235,11 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sb.AppendLine($"{tabString}{tabString}{tabString}}},");
         }
 
-        private static void GenerateUpdateLabelsMethod(StringBuilder sb, string enumDataClassName, string tabString)
+        private static void GenerateUpdateLabelsMethod(
+            StringBuilder sb,
+            string getTranslation,
+            string enumDataClassName,
+            string tabString)
         {
             sb.AppendLine($"{tabString}/// <summary>");
             sb.AppendLine($"{tabString}/// Update the labels of the enum values when culture info changes.");
@@ -204,7 +251,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sb.AppendLine($"{tabString}{tabString}{{");
             sb.AppendLine($"{tabString}{tabString}{tabString}if (!string.IsNullOrEmpty(item.LocalizationKey))");
             sb.AppendLine($"{tabString}{tabString}{tabString}{{");
-            sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}item.Display = Main.Context.API.GetTranslation(item.LocalizationKey);");
+            sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}item.Display = {getTranslation}(item.LocalizationKey);");
             sb.AppendLine($"{tabString}{tabString}{tabString}}}");
             sb.AppendLine($"{tabString}{tabString}}}");
             sb.AppendLine($"{tabString}}}");
