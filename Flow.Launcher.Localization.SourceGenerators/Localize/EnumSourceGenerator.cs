@@ -131,7 +131,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                     var key = keyAttr?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty;
                     var value = valueAttr?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty;
 
-                    if (keyAttrExist && !string.IsNullOrEmpty(key))
+                    // Users may use "  " as a key, so we need to check if the key is not empty and not whitespace
+                    if (keyAttrExist && !string.IsNullOrWhiteSpace(key))
                     {
                         // If localization key exists and is valid, use it
                         enumFields.Add(new EnumField(enumFieldName, key, valueAttrExist ? value : null));
@@ -316,7 +317,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sb.AppendLine($"{tabString}{{");
             sb.AppendLine($"{tabString}{tabString}foreach (var item in options)");
             sb.AppendLine($"{tabString}{tabString}{{");
-            sb.AppendLine($"{tabString}{tabString}{tabString}if (!string.IsNullOrEmpty(item.LocalizationKey))");
+            // Users may use "  " as a key, so we need to check if the key is not empty and not whitespace
+            sb.AppendLine($"{tabString}{tabString}{tabString}if (!string.IsNullOrWhiteSpace(item.LocalizationKey))");
             sb.AppendLine($"{tabString}{tabString}{tabString}{{");
             sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}item.Display = {getTranslation}(item.LocalizationKey);");
             sb.AppendLine($"{tabString}{tabString}{tabString}}}");
@@ -334,7 +336,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             public string LocalizationKey { get; set; }
             public string LocalizationValue { get; set; }
 
-            public bool UseLocalizationKey => LocalizationKey != null;
+            // Users may use "  " as a key, so we need to check if the key is not empty and not whitespace
+            public bool UseLocalizationKey => !string.IsNullOrWhiteSpace(LocalizationKey);
 
             public EnumField(string enumFieldName, string localizationValue) : this(enumFieldName, null, localizationValue)
             {
