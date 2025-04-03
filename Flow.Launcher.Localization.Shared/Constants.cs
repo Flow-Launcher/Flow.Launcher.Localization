@@ -1,5 +1,4 @@
-﻿using Flow.Launcher.Localization.Shared.Attributes;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace Flow.Launcher.Localization.Shared
 {
@@ -22,9 +21,9 @@ namespace Flow.Launcher.Localization.Shared
         public const string StringFormatMethodName = "Format";
         public const string StringFormatTypeName = "string";
         public const string EnumLocalizeClassSuffix = "Data";
-        public const string EnumLocalizeAttributeName = nameof(EnumLocalizeAttribute);
-        public const string EnumLocalizeKeyAttributeName = nameof(EnumLocalizeKeyAttribute);
-        public const string EnumLocalizeValueAttributeName = nameof(EnumLocalizeValueAttribute);
+        public const string EnumLocalizeAttributeName = "EnumLocalizeAttribute";
+        public const string EnumLocalizeKeyAttributeName = "EnumLocalizeKeyAttribute";
+        public const string EnumLocalizeValueAttributeName = "EnumLocalizeValueAttribute";
 
         public static readonly Regex LanguagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
         public static readonly string[] OldLocalizationClasses = { "IPublicAPI", "Internationalization" };
