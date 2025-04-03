@@ -90,7 +90,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
             // Generate using directives
             sourceBuilder.AppendLine("using System.Collections.Generic;");
-            sourceBuilder.AppendLine("using Flow.Launcher.Plugin;");
             sourceBuilder.AppendLine();
 
             // Generate namespace
@@ -197,7 +196,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         {
             sb.AppendLine($"{tabString}/// <summary>");
             sb.AppendLine($"{tabString}/// Update the labels of the enum values when culture info changes.");
-            sb.AppendLine($"{tabString}/// See <see cref=\"PluginInitContext.CultureInfoChanged\"/> for more details");
+            sb.AppendLine($"{tabString}/// See <see cref=\"Flow.Launcher.Plugin.PluginInitContext.CultureInfoChanged\"/> for more details");
             sb.AppendLine($"{tabString}/// </summary>");
             sb.AppendLine($"{tabString}public static void UpdateLabels(List<{enumDataClassName}> options)");
             sb.AppendLine($"{tabString}{{");
