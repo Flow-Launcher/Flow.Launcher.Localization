@@ -92,6 +92,63 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         #endregion
 
+        #region Get Enum Fields
+
+        private static ImmutableArray<EnumField> GetEnumFields(SourceProductionContext spc, INamedTypeSymbol enumSymbol, string enumFullName)
+        {
+            // Iterate through enum members and get enum fields
+            var enumFields = new List<EnumField>();
+            var enumError = false;
+            foreach (var member in enumSymbol.GetMembers().Where(m => m.Kind == SymbolKind.Field))
+            {
+                if (member is IFieldSymbol fieldSymbol)
+                {
+                    var enumFieldName = fieldSymbol.Name;
+
+                    // Check if the field has the EnumLocalizeKey attribute
+                    var keyAttr = fieldSymbol.GetAttributes()
+                        .FirstOrDefault(a => a.AttributeClass?.Name == Constants.EnumLocalizeKeyAttributeName);
+                    var keyAttrExist = keyAttr != null;
+
+                    // Check if the field has the EnumLocalizeValue attribute
+                    var valueAttr = fieldSymbol.GetAttributes()
+                        .FirstOrDefault(a => a.AttributeClass?.Name == Constants.EnumLocalizeValueAttributeName);
+                    var valueAttrExist = valueAttr != null;
+
+                    // Get the key and value from the attributes
+                    var key = keyAttr?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty;
+                    var value = valueAttr?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty;
+
+                    if (keyAttrExist && !string.IsNullOrEmpty(key))
+                    {
+                        // If localization key exists and is valid, use it
+                        enumFields.Add(new EnumField(enumFieldName, key, valueAttrExist ? value : null));
+                    }
+                    else if (valueAttrExist)
+                    {
+                        // If localization value exists, use it
+                        enumFields.Add(new EnumField(enumFieldName, value));
+                    }
+                    else
+                    {
+                        // If localization key and value are not provided, do not generate the field and report a diagnostic
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            SourceGeneratorDiagnostics.EnumFieldLocalizationKeyValueInvalid,
+                            Location.None,
+                            $"{enumFullName}.{enumFieldName}"));
+                        enumError = true;
+                    }
+                }
+            }
+
+            // If there was an error, do not generate the class
+            if (enumError) return _emptyEnumFields;
+
+            return enumFields.ToImmutableArray();
+        }
+
+        #endregion
+
         #region Generate Source
 
         private void GenerateSource(
@@ -255,63 +312,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sb.AppendLine($"{tabString}{tabString}{tabString}}}");
             sb.AppendLine($"{tabString}{tabString}}}");
             sb.AppendLine($"{tabString}}}");
-        }
-
-        #endregion
-
-        #region Get Enum Fields
-
-        private static ImmutableArray<EnumField> GetEnumFields(SourceProductionContext spc, INamedTypeSymbol enumSymbol, string enumFullName)
-        {
-            // Iterate through enum members and get enum fields
-            var enumFields = new List<EnumField>();
-            var enumError = false;
-            foreach (var member in enumSymbol.GetMembers().Where(m => m.Kind == SymbolKind.Field))
-            {
-                if (member is IFieldSymbol fieldSymbol)
-                {
-                    var enumFieldName = fieldSymbol.Name;
-
-                    // Check if the field has the EnumLocalizeKey attribute
-                    var keyAttr = fieldSymbol.GetAttributes()
-                        .FirstOrDefault(a => a.AttributeClass?.Name == Constants.EnumLocalizeKeyAttributeName);
-                    var keyAttrExist = keyAttr != null;
-
-                    // Check if the field has the EnumLocalizeValue attribute
-                    var valueAttr = fieldSymbol.GetAttributes()
-                        .FirstOrDefault(a => a.AttributeClass?.Name == Constants.EnumLocalizeValueAttributeName);
-                    var valueAttrExist = valueAttr != null;
-
-                    // Get the key and value from the attributes
-                    var key = keyAttr?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty;
-                    var value = valueAttr?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty;
-
-                    if (keyAttrExist && !string.IsNullOrEmpty(key))
-                    {
-                        // If localization key exists and is valid, use it
-                        enumFields.Add(new EnumField(enumFieldName, key, valueAttrExist ? value : null));
-                    }
-                    else if (valueAttrExist)
-                    {
-                        // If localization value exists, use it
-                        enumFields.Add(new EnumField(enumFieldName, value));
-                    }
-                    else
-                    {
-                        // If localization key and value are not provided, do not generate the field and report a diagnostic
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            SourceGeneratorDiagnostics.EnumFieldLocalizationKeyValueInvalid,
-                            Location.None,
-                            $"{enumFullName}.{enumFieldName}"));
-                        enumError = true;
-                    }
-                }
-            }
-
-            // If there was an error, do not generate the class
-            if (enumError) return _emptyEnumFields;
-
-            return enumFields.ToImmutableArray();
         }
 
         #endregion
