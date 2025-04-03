@@ -4,6 +4,8 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <RootNamespace>Flow.Launcher.Localization.SourceGenerators</RootNamespace>
+    <!-- Add AssemblyVersion because we need to use assembly version as package version -->
+    <AssemblyVersion>0.2.15</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
