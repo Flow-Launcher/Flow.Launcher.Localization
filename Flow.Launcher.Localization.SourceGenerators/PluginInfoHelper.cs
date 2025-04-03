@@ -9,8 +9,7 @@ namespace Flow.Launcher.Localization.SourceGenerators
     {
         public static PluginClassInfo GetValidPluginInfoAndReportDiagnostic(
             ImmutableArray<PluginClassInfo> pluginClasses,
-            SourceProductionContext context,
-            bool useDI)
+            SourceProductionContext context)
         {
             // If p is null, this class does not implement IPluginI18n
             var iPluginI18nClasses = pluginClasses.Where(p => p != null).ToArray();
@@ -20,13 +19,6 @@ namespace Flow.Launcher.Localization.SourceGenerators
                     SourceGeneratorDiagnostics.CouldNotFindPluginEntryClass,
                     Location.None
                 ));
-                return null;
-            }
-
-            // If we use dependency injection, we do not need to check if there is a valid plugin context
-            // Also we do not need to return the plugin info
-            if (useDI)
-            {
                 return null;
             }
 

@@ -72,9 +72,22 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var assemblyNamespace = compilation.AssemblyName ?? Constants.DefaultNamespace;
             var useDI = configOptions.GetFLLUseDependencyInjection();
 
-            var pluginInfo = PluginInfoHelper.GetValidPluginInfoAndReportDiagnostic(pluginClasses, spc, useDI);
-
-            if (pluginInfo == null) return;
+            PluginClassInfo pluginInfo;
+            if (useDI)
+            {
+                // If we use dependency injection, we do not need to check if there is a valid plugin context
+                // Also we do not need to return the plugin info
+                pluginInfo = null;
+            }
+            else
+            {
+                pluginInfo = PluginInfoHelper.GetValidPluginInfoAndReportDiagnostic(pluginClasses, spc);
+                if (pluginInfo == null)
+                {
+                    // If we cannot find a valid plugin info, we do not need to generate the source
+                    return;
+                }
+            }
 
             foreach (var enumDeclaration in enumsDeclarations.Distinct())
             {
