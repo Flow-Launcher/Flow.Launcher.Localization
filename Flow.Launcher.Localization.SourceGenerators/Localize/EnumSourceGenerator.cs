@@ -1,0 +1,269 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Linq;
+using System.Text;
+using Flow.Launcher.Localization.Shared;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
+
+namespace Flow.Launcher.Localization.SourceGenerators.Localize
+{
+    [Generator]
+    public partial class EnumSourceGenerator : IIncrementalGenerator
+    {
+        #region Fields
+
+        private static readonly Version PackageVersion = typeof(EnumSourceGenerator).Assembly.GetName().Version;
+
+        private static readonly ImmutableArray<EnumField> _emptyEnumFields = ImmutableArray<EnumField>.Empty;
+
+        #endregion
+
+        #region Incremental Generator
+
+        /// <summary>
+        /// Initializes the generator and registers source output based on resource files.
+        /// </summary>
+        /// <param name="context">The initialization context.</param>
+        public void Initialize(IncrementalGeneratorInitializationContext context)
+        {
+            var enumDeclarations = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    predicate: (s, _) => s is EnumDeclarationSyntax,
+                    transform: (ctx, _) => (EnumDeclarationSyntax)ctx.Node)
+                .Where(ed => ed.AttributeLists.Count > 0)
+                .Collect();
+
+            var compilation = context.CompilationProvider;
+
+            var compilationEnums = enumDeclarations.Combine(compilation);
+
+            context.RegisterSourceOutput(compilationEnums, Execute);
+        }
+
+        /// <summary>
+        /// Executes the generation of string properties based on the provided data.
+        /// </summary>
+        /// <param name="spc">The source production context.</param>
+        /// <param name="data">The provided data.</param>
+        private void Execute(SourceProductionContext spc,
+            (ImmutableArray<EnumDeclarationSyntax> Enums, Compilation Compilation) data)
+        {
+            var enums = data.Enums;
+            var compilation = data.Compilation;
+
+            var assemblyName = compilation.AssemblyName ?? Constants.DefaultNamespace;
+
+            foreach (var enumDeclaration in enums.Distinct())
+            {
+                var semanticModel = compilation.GetSemanticModel(enumDeclaration.SyntaxTree);
+                var enumSymbol = semanticModel.GetDeclaredSymbol(enumDeclaration) as INamedTypeSymbol;
+
+                // Check if the enum has the EnumLocalize attribute
+                if (enumSymbol?.GetAttributes().Any(ad =>
+                    ad.AttributeClass?.Name == Constants.EnumLocalizeAttributeName) ?? false)
+                {
+                    GenerateSource(spc, enumSymbol, assemblyName);
+                }
+            }
+        }
+
+        #endregion
+
+        #region Generate Source
+
+        private void GenerateSource(SourceProductionContext spc, INamedTypeSymbol enumSymbol, string assemblyName)
+        {
+            var enumFullName = enumSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var enumDataClassName = $"{enumSymbol.Name}{Constants.EnumLocalizeClassSuffix}";
+            var enumName = enumSymbol.Name;
+            var enumNamespace = enumSymbol.ContainingNamespace.ToDisplayString();
+            var tabString = Helper.Spacing(1);
+
+            var sourceBuilder = new StringBuilder();
+
+            // Generate header
+            GeneratedHeaderFromPath(sourceBuilder, enumFullName);
+            sourceBuilder.AppendLine();
+
+            // Generate using directives
+            sourceBuilder.AppendLine("using System.Collections.Generic;");
+            sourceBuilder.AppendLine("using Flow.Launcher.Plugin;");
+            sourceBuilder.AppendLine();
+
+            // Generate namespace
+            sourceBuilder.AppendLine($"namespace {enumNamespace};");
+            sourceBuilder.AppendLine();
+
+            // Generate class
+            sourceBuilder.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{nameof(EnumSourceGenerator)}\", \"{PackageVersion}\")]");
+            sourceBuilder.AppendLine($"public class {enumDataClassName}");
+            sourceBuilder.AppendLine("{");
+
+            // Generate properties
+            sourceBuilder.AppendLine($"{tabString}public {enumName} Value {{ get; private init; }}");
+            sourceBuilder.AppendLine($"{tabString}public string Display {{ get; set; }}");
+            sourceBuilder.AppendLine($"{tabString}public string LocalizationKey {{ get; set; }}");
+            sourceBuilder.AppendLine($"{tabString}public string LocalizationValue {{ get; set; }}");
+            sourceBuilder.AppendLine();
+
+            // Generate GetValues method
+            sourceBuilder.AppendLine($"{tabString}public static List<{enumDataClassName}> GetValues()");
+            sourceBuilder.AppendLine($"{tabString}{{");
+            sourceBuilder.AppendLine($"{tabString}{tabString}return new List<{enumDataClassName}>");
+            sourceBuilder.AppendLine($"{tabString}{tabString}{{");
+            var enumFields = GetEnumFields(spc, enumSymbol, enumFullName);
+            if (enumFields.Length == 0) return;
+            foreach (var enumField in enumFields)
+            {
+                GenerateEnumField(sourceBuilder, enumField, enumName, tabString);
+            }
+            sourceBuilder.AppendLine($"{tabString}{tabString}}};");
+            sourceBuilder.AppendLine($"{tabString}}}");
+            sourceBuilder.AppendLine();
+
+            // Generate UpdateLabels method
+            GenerateUpdateLabelsMethod(sourceBuilder, enumDataClassName, tabString);
+
+            sourceBuilder.AppendLine($"}}");
+
+            // Add source to context
+            spc.AddSource($"{Constants.ClassName}.{enumNamespace}.{enumDataClassName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+        }
+
+        private static void GeneratedHeaderFromPath(StringBuilder sb, string enumFullName)
+        {
+            if (string.IsNullOrEmpty(enumFullName))
+            {
+                sb.AppendLine("/// <auto-generated/>");
+            }
+            else
+            {
+                sb.AppendLine("/// <auto-generated>")
+                    .AppendLine($"/// From: {enumFullName}")
+                    .AppendLine("/// </auto-generated>");
+            }
+        }
+
+        private static void GenerateEnumField(StringBuilder sb, EnumField enumField, string enumName, string tabString)
+        {
+            sb.AppendLine($"{tabString}{tabString}{tabString}new()");
+            sb.AppendLine($"{tabString}{tabString}{tabString}{{");
+            sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}Value = {enumName}.{enumField.EnumFieldName},");
+            if (enumField.UseLocalizationKey)
+            {
+                // TODO
+                sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}Display = Main.Context.API.GetTranslation(\"{enumField.LocalizationKey}\"),");
+                sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}LocalizationKey = \"{enumField.LocalizationKey}\",");
+            }
+            else
+            {
+                sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}Display = \"{enumField.LocalizationValue}\",");
+            }
+            if (enumField.LocalizationValue != null)
+            {
+                sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}LocalizationValue = \"{enumField.LocalizationValue}\",");
+            }
+            sb.AppendLine($"{tabString}{tabString}{tabString}}},");
+        }
+
+        private static void GenerateUpdateLabelsMethod(StringBuilder sb, string enumDataClassName, string tabString)
+        {
+            sb.AppendLine($"{tabString}public static void UpdateLabels(List<{enumDataClassName}> options)");
+            sb.AppendLine($"{tabString}{{");
+            sb.AppendLine($"{tabString}{tabString}foreach (var item in options)");
+            sb.AppendLine($"{tabString}{tabString}{{");
+            sb.AppendLine($"{tabString}{tabString}{tabString}if (!string.IsNullOrEmpty(item.LocalizationKey))");
+            sb.AppendLine($"{tabString}{tabString}{tabString}{{");
+            sb.AppendLine($"{tabString}{tabString}{tabString}{tabString}item.Display = Main.Context.API.GetTranslation(item.LocalizationKey);");
+            sb.AppendLine($"{tabString}{tabString}{tabString}}}");
+            sb.AppendLine($"{tabString}{tabString}}}");
+            sb.AppendLine($"{tabString}}}");
+        }
+
+        #endregion
+
+        #region Get Enum Fields
+
+        private static ImmutableArray<EnumField> GetEnumFields(SourceProductionContext spc, INamedTypeSymbol enumSymbol, string enumFullName)
+        {
+            // Iterate through enum members and get enum fields
+            var enumFields = new List<EnumField>();
+            var enumError = false;
+            foreach (var member in enumSymbol.GetMembers().Where(m => m.Kind == SymbolKind.Field))
+            {
+                if (member is IFieldSymbol fieldSymbol)
+                {
+                    var enumFieldName = fieldSymbol.Name;
+
+                    // Check if the field has the EnumLocalizeKey attribute
+                    var keyAttr = fieldSymbol.GetAttributes()
+                        .FirstOrDefault(a => a.AttributeClass?.Name == Constants.EnumLocalizeKeyAttributeName);
+                    var keyAttrExist = keyAttr != null;
+
+                    // Check if the field has the EnumLocalizeValue attribute
+                    var valueAttr = fieldSymbol.GetAttributes()
+                        .FirstOrDefault(a => a.AttributeClass?.Name == Constants.EnumLocalizeValueAttributeName);
+                    var valueAttrExist = valueAttr != null;
+
+                    // Get the key and value from the attributes
+                    var key = keyAttr?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty;
+                    var value = valueAttr?.ConstructorArguments.FirstOrDefault().Value?.ToString() ?? string.Empty;
+
+                    if (keyAttrExist && !string.IsNullOrEmpty(key))
+                    {
+                        // If localization key exists and is valid, use it
+                        enumFields.Add(new EnumField(enumFieldName, key, valueAttrExist ? value : null));
+                    }
+                    else if (valueAttrExist)
+                    {
+                        // If localization value exists, use it
+                        enumFields.Add(new EnumField(enumFieldName, value));
+                    }
+                    else
+                    {
+                        // If localization key and value are not provided, do not generate the field and report a diagnostic
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            SourceGeneratorDiagnostics.EnumFieldLocalizationKeyValueInvalid,
+                            Location.None,
+                            $"{enumFullName}.{enumFieldName}"));
+                        enumError = true;
+                    }
+                }
+            }
+
+            // If there was an error, do not generate the class
+            if (enumError) return _emptyEnumFields;
+
+            return enumFields.ToImmutableArray();
+        }
+
+        #endregion
+
+        #region Classes
+
+        public class EnumField
+        {
+            public string EnumFieldName { get; set; }
+            public string LocalizationKey { get; set; }
+            public string LocalizationValue { get; set; }
+
+            public bool UseLocalizationKey => LocalizationKey != null;
+
+            public EnumField(string enumFieldName, string localizationValue) : this(enumFieldName, null, localizationValue)
+            {
+            }
+
+            public EnumField(string enumFieldName, string localizationKey, string localizationValue)
+            {
+                EnumFieldName = enumFieldName;
+                LocalizationKey = localizationKey;
+                LocalizationValue = localizationValue;
+            }
+        }
+
+        #endregion
+    }
+}

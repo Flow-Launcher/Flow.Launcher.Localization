@@ -572,7 +572,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"public static class {Constants.ClassName}");
             sourceBuilder.AppendLine("{");
 
-            var tabString = Spacing(1);
+            var tabString = Helper.Spacing(1);
 
             // Generate API instance
             string getTranslation = null;
@@ -675,20 +675,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             }
 
             sb.AppendLine();
-        }
-
-        private static string Spacing(int n)
-        {
-            Span<char> spaces = stackalloc char[n * 4];
-            spaces.Fill(' ');
-
-            var sb = new StringBuilder(n * 4);
-            foreach (var c in spaces)
-            {
-                _ = sb.Append(c);
-            }
-
-            return sb.ToString();
         }
 
         #endregion
