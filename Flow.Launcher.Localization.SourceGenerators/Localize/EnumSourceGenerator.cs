@@ -25,7 +25,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         #region Incremental Generator
 
         /// <summary>
-        /// Initializes the generator and registers source output based on resource files.
+        /// Initializes the generator and registers source output based on enum declarations.
         /// </summary>
         /// <param name="context">The initialization context.</param>
         public void Initialize(IncrementalGeneratorInitializationContext context)
@@ -54,7 +54,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         }
 
         /// <summary>
-        /// Executes the generation of string properties based on the provided data.
+        /// Executes the generation of enum data classes based on the provided data.
         /// </summary>
         /// <param name="spc">The source production context.</param>
         /// <param name="data">The provided data.</param>
@@ -76,7 +76,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             if (useDI)
             {
                 // If we use dependency injection, we do not need to check if there is a valid plugin context
-                // Also we do not need to return the plugin info
                 pluginInfo = null;
             }
             else

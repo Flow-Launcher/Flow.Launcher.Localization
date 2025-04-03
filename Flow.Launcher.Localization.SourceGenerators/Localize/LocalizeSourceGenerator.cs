@@ -104,7 +104,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             if (useDI)
             {
                 // If we use dependency injection, we do not need to check if there is a valid plugin context
-                // Also we do not need to return the plugin info
                 pluginInfo = null;
             }
             else
