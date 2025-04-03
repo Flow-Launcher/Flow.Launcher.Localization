@@ -97,7 +97,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var usedKeys = data.Item1.Item1.Item1.Item1.InvocationKeys;
             var localizedStrings = data.Item1.Item1.Item1.Item1.LocalizableStrings;
 
-            var assemblyName = compilation.AssemblyName ?? Constants.DefaultNamespace;
+            var assemblyNamespace = compilation.AssemblyName ?? Constants.DefaultNamespace;
             var useDI = configOptions.GetFLLUseDependencyInjection();
 
             var pluginInfo = PluginInfoHelper.GetValidPluginInfoAndReportDiagnostic(pluginClasses, spc, useDI);
@@ -108,7 +108,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 spc,
                 xamlFiles[0],
                 localizedStrings,
-                assemblyName,
+                assemblyNamespace,
                 useDI,
                 pluginInfo,
                 usedKeys);
@@ -429,7 +429,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             SourceProductionContext spc,
             AdditionalText xamlFile,
             ImmutableArray<LocalizableString> localizedStrings,
-            string assemblyName,
+            string assemblyNamespace,
             bool useDI,
             PluginClassInfo pluginInfo,
             IEnumerable<string> usedKeys)
@@ -458,7 +458,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine();
 
             // Generate namespace
-            sourceBuilder.AppendLine($"namespace {assemblyName};");
+            sourceBuilder.AppendLine($"namespace {assemblyNamespace};");
             sourceBuilder.AppendLine();
 
             // Uncomment them for debugging
@@ -518,7 +518,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine("}");
 
             // Add source to context
-            spc.AddSource($"{Constants.ClassName}.{assemblyName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+            spc.AddSource($"{Constants.ClassName}.{assemblyNamespace}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
         }
 
         private static void GeneratedHeaderFromPath(StringBuilder sb, string xamlFilePath)

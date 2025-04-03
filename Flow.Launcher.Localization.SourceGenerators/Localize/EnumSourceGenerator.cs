@@ -69,7 +69,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var pluginClasses = data.Item1.Item1.PluginClassInfos;
             var enumsDeclarations = data.Item1.Item1.EnumsDeclarations;
 
-            var assemblyName = compilation.AssemblyName ?? Constants.DefaultNamespace;
+            var assemblyNamespace = compilation.AssemblyName ?? Constants.DefaultNamespace;
             var useDI = configOptions.GetFLLUseDependencyInjection();
 
             var pluginInfo = PluginInfoHelper.GetValidPluginInfoAndReportDiagnostic(pluginClasses, spc, useDI);
@@ -85,7 +85,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 if (enumSymbol?.GetAttributes().Any(ad =>
                     ad.AttributeClass?.Name == Constants.EnumLocalizeAttributeName) ?? false)
                 {
-                    GenerateSource(spc, enumSymbol, useDI, pluginInfo, assemblyName);
+                    GenerateSource(spc, enumSymbol, useDI, pluginInfo, assemblyNamespace);
                 }
             }
         }
@@ -156,7 +156,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             INamedTypeSymbol enumSymbol,
             bool useDI,
             PluginClassInfo pluginInfo,
-            string assemblyName)
+            string assemblyNamespace)
         {
             var enumFullName = enumSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
             var enumDataClassName = $"{enumSymbol.Name}{Constants.EnumLocalizeClassSuffix}";
@@ -222,7 +222,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             }
             else if (pluginInfo?.IsValid == true)
             {
-                getTranslation = $"{pluginInfo.ContextAccessor}.API.GetTranslation";
+                getTranslation = $"{assemblyNamespace}.{pluginInfo.ContextAccessor}.API.GetTranslation";
             }
 
             // Generate GetValues method
@@ -249,7 +249,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"}}");
 
             // Add source to context
-            spc.AddSource($"{Constants.ClassName}.{assemblyName}.{enumNamespace}.{enumDataClassName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+            spc.AddSource($"{Constants.ClassName}.{assemblyNamespace}.{enumNamespace}.{enumDataClassName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
         }
 
         private static void GeneratedHeaderFromPath(StringBuilder sb, string enumFullName)
