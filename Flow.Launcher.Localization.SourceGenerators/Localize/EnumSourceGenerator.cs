@@ -215,10 +215,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             string getTranslation = null;
             if (useDI)
             {
-                sourceBuilder.AppendLine($"{tabString}private static Flow.Launcher.Plugin.IPublicAPI? api = null;");
-                sourceBuilder.AppendLine($"{tabString}private static Flow.Launcher.Plugin.IPublicAPI Api => api ??= CommunityToolkit.Mvvm.DependencyInjection.Ioc.Default.GetRequiredService<Flow.Launcher.Plugin.IPublicAPI>();");
-                sourceBuilder.AppendLine();
-                getTranslation = "Api.GetTranslation";
+                // Use Api from LocalizeSourceGenerator
+                getTranslation = $"{assemblyNamespace}.{Constants.ClassName}.Api.GetTranslation";
             }
             else if (pluginInfo?.IsValid == true)
             {
