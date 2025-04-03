@@ -227,8 +227,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             string getTranslation = null;
             if (useDI)
             {
-                // Use Api from LocalizeSourceGenerator
-                getTranslation = $"{assemblyNamespace}.{Constants.ClassName}.Api.GetTranslation";
+                // Use instance from PublicApiSourceGenerator
+                getTranslation = $"{assemblyNamespace}.{Constants.PublicApiClassName}.{Constants.PublicApiInternalPropertyName}.GetTranslation";
             }
             else if (pluginInfo?.IsValid == true)
             {

@@ -510,11 +510,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             string getTranslation = null;
             if (useDI)
             {
-                sourceBuilder.AppendLine($"{tabString}private static Flow.Launcher.Plugin.IPublicAPI? api = null;");
-                // Internal for EnumSourceGenerator to use
-                sourceBuilder.AppendLine($"{tabString}internal static Flow.Launcher.Plugin.IPublicAPI Api => api ??= CommunityToolkit.Mvvm.DependencyInjection.Ioc.Default.GetRequiredService<Flow.Launcher.Plugin.IPublicAPI>();");
-                sourceBuilder.AppendLine();
-                getTranslation = "Api.GetTranslation";
+                // Use instance from PublicApiSourceGenerator
+                getTranslation = $"{assemblyNamespace}.{Constants.PublicApiClassName}.{Constants.PublicApiInternalPropertyName}.GetTranslation";
             }
             else if (pluginInfo?.IsValid == true)
             {
