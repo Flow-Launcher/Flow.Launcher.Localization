@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Flow.Launcher.Localization.SourceGenerators.Shared.Attributes
+namespace Flow.Launcher.Localization.Shared.Attributes
 {
     /// <summary>
     /// Attribute to mark an enum for localization.

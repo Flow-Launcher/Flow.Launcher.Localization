@@ -1,4 +1,4 @@
-﻿using Flow.Launcher.Localization.SourceGenerators.Shared.Attributes;
+﻿using Flow.Launcher.Localization.Shared.Attributes;
 using System.Text.RegularExpressions;
 
 namespace Flow.Launcher.Localization.Shared
