@@ -98,18 +98,42 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine();
 
             // Generate class
+            sourceBuilder.AppendLine($"/// <summary>");
+            sourceBuilder.AppendLine($"/// Data class for <see cref=\"{enumFullName}\"/>");
+            sourceBuilder.AppendLine($"/// </summary>");
             sourceBuilder.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{nameof(EnumSourceGenerator)}\", \"{PackageVersion}\")]");
             sourceBuilder.AppendLine($"public class {enumDataClassName}");
             sourceBuilder.AppendLine("{");
 
             // Generate properties
+            sourceBuilder.AppendLine($"{tabString}/// <summary>");
+            sourceBuilder.AppendLine($"{tabString}/// The value of the enum");
+            sourceBuilder.AppendLine($"{tabString}/// </summary>");
             sourceBuilder.AppendLine($"{tabString}public {enumName} Value {{ get; private init; }}");
+            sourceBuilder.AppendLine();
+
+            sourceBuilder.AppendLine($"{tabString}/// <summary>");
+            sourceBuilder.AppendLine($"{tabString}/// The display text of the enum value");
+            sourceBuilder.AppendLine($"{tabString}/// </summary>");
             sourceBuilder.AppendLine($"{tabString}public string Display {{ get; set; }}");
+            sourceBuilder.AppendLine();
+
+            sourceBuilder.AppendLine($"{tabString}/// <summary>");
+            sourceBuilder.AppendLine($"{tabString}/// The localization key of the enum value");
+            sourceBuilder.AppendLine($"{tabString}/// </summary>");
             sourceBuilder.AppendLine($"{tabString}public string LocalizationKey {{ get; set; }}");
+            sourceBuilder.AppendLine();
+
+            sourceBuilder.AppendLine($"{tabString}/// <summary>");
+            sourceBuilder.AppendLine($"{tabString}/// The localization value of the enum value");
+            sourceBuilder.AppendLine($"{tabString}/// </summary>");
             sourceBuilder.AppendLine($"{tabString}public string LocalizationValue {{ get; set; }}");
             sourceBuilder.AppendLine();
 
             // Generate GetValues method
+            sourceBuilder.AppendLine($"{tabString}/// <summary>");
+            sourceBuilder.AppendLine($"{tabString}/// Get all values of <see cref=\"{enumFullName}\"/>");
+            sourceBuilder.AppendLine($"{tabString}/// </summary>");
             sourceBuilder.AppendLine($"{tabString}public static List<{enumDataClassName}> GetValues()");
             sourceBuilder.AppendLine($"{tabString}{{");
             sourceBuilder.AppendLine($"{tabString}{tabString}return new List<{enumDataClassName}>");
@@ -171,6 +195,10 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         private static void GenerateUpdateLabelsMethod(StringBuilder sb, string enumDataClassName, string tabString)
         {
+            sb.AppendLine($"{tabString}/// <summary>");
+            sb.AppendLine($"{tabString}/// Update the labels of the enum values when culture info changes.");
+            sb.AppendLine($"{tabString}/// See <see cref=\"PluginInitContext.CultureInfoChanged\"/> for more details");
+            sb.AppendLine($"{tabString}/// </summary>");
             sb.AppendLine($"{tabString}public static void UpdateLabels(List<{enumDataClassName}> options)");
             sb.AppendLine($"{tabString}{{");
             sb.AppendLine($"{tabString}{tabString}foreach (var item in options)");
