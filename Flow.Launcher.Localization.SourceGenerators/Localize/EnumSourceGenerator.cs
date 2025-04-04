@@ -171,7 +171,9 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             PluginClassInfo pluginInfo,
             string assemblyNamespace)
         {
-            var enumFullName = enumSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var enumFullName = enumSymbol.ToDisplayString(new SymbolDisplayFormat(
+                globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted, // Remove global:: symbol
+                typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces));
             var enumDataClassName = $"{enumSymbol.Name}{Constants.EnumLocalizeClassSuffix}";
             var enumName = enumSymbol.Name;
             var enumNamespace = enumSymbol.ContainingNamespace.ToDisplayString();
