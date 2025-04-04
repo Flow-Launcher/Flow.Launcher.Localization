@@ -521,8 +521,9 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             // Generate localization methods
             foreach (var ls in localizedStrings)
             {
+                var isLast = ls.Equals(localizedStrings.Last());
                 GenerateDocComments(sourceBuilder, ls, tabString);
-                GenerateLocalizationMethod(sourceBuilder, ls, getTranslation, tabString);
+                GenerateLocalizationMethod(sourceBuilder, ls, getTranslation, tabString, isLast);
             }
 
             sourceBuilder.AppendLine("}");
@@ -579,7 +580,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             StringBuilder sb,
             LocalizableString ls,
             string getTranslation,
-            string tabString)
+            string tabString,
+            bool last)
         {
             sb.Append($"{tabString}public static string {ls.Key}(");
 
@@ -604,7 +606,10 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 sb.AppendLine("\"LOCALIZATION_ERROR\";");
             }
 
-            sb.AppendLine();
+            if (!last)
+            {
+                sb.AppendLine();
+            }
         }
 
         #endregion
