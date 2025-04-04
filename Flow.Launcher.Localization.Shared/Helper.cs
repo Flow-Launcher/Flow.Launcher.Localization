@@ -1,6 +1,4 @@
-﻿using System;
-using System.Linq;
-using System.Text;
+﻿using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -88,16 +86,7 @@ namespace Flow.Launcher.Localization.Shared
 
         public static string Spacing(int n)
         {
-            Span<char> spaces = stackalloc char[n * 4];
-            spaces.Fill(' ');
-
-            var sb = new StringBuilder(n * 4);
-            foreach (var c in spaces)
-            {
-                _ = sb.Append(c);
-            }
-
-            return sb.ToString();
+            return new string(' ', n * 4);
         }
 
         #endregion
