@@ -8,8 +8,7 @@ For C# Plugins, we need to install and reference [Flow.Launcher.Localization](ww
 
 ### `FLLUseDependencyInjection`
 
-Whether to use depenedency injection to get `IPublicAPI` instance. Default by false.
-
+Whether to use dependency injection to get `IPublicAPI` instance. Default by false.
 If set to `false`, the `Main` class that implements **[IPlugin](/API-Reference/Flow.Launcher.Plugin/IPlugin.md)** or **[IAsyncPlugin](/API-Reference/Flow.Launcher.Plugin/IAsyncPlugin.md)** must have a [PluginInitContext](/API-Reference/Flow.Launcher.Plugin/PluginInitContext.md) property which must be at least `internal static`.
 
 If set to `true`, we can access `IPublicAPI` instance from `PublicApi.Instance` in the project by dependency injection.
