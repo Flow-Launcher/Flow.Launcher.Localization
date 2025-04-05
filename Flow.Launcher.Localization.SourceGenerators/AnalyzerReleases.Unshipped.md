@@ -11,3 +11,4 @@ FLSG0004 | Localization | Warning | FLSG0004_ContextPropertyNotStatic
 FLSG0005 | Localization | Warning | FLSG0005_ContextPropertyIsPrivate
 FLSG0006 | Localization | Warning | FLSG0006_ContextPropertyIsProtected
 FLSG0007 | Localization | Warning | FLSG0007_LocalizationKeyUnused
+FLSG0008 | Localization | Warning | FLSG0008_EnumFieldLocalizationKeyValueInvalid

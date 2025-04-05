@@ -97,16 +97,30 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var usedKeys = data.Item1.Item1.Item1.Item1.InvocationKeys;
             var localizedStrings = data.Item1.Item1.Item1.Item1.LocalizableStrings;
 
-            var assemblyName = compilation.AssemblyName ?? Constants.DefaultNamespace;
+            var assemblyNamespace = compilation.AssemblyName ?? Constants.DefaultNamespace;
             var useDI = configOptions.GetFLLUseDependencyInjection();
 
-            var pluginInfo = GetValidPluginInfo(pluginClasses, spc, useDI);
+            PluginClassInfo pluginInfo;
+            if (useDI)
+            {
+                // If we use dependency injection, we do not need to check if there is a valid plugin context
+                pluginInfo = null;
+            }
+            else
+            {
+                pluginInfo = PluginInfoHelper.GetValidPluginInfoAndReportDiagnostic(pluginClasses, spc);
+                if (pluginInfo == null)
+                {
+                    // If we cannot find a valid plugin info, we do not need to generate the source
+                    return;
+                }
+            }
             
             GenerateSource(
                 spc,
                 xamlFiles[0],
                 localizedStrings,
-                assemblyName,
+                assemblyNamespace,
                 useDI,
                 pluginInfo,
                 usedKeys);
@@ -421,95 +435,13 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
         #endregion
 
-        #region Get Plugin Class Info
-
-        private static PluginClassInfo GetValidPluginInfo(
-            ImmutableArray<PluginClassInfo> pluginClasses,
-            SourceProductionContext context,
-            bool useDI)
-        {
-            // If p is null, this class does not implement IPluginI18n
-            var iPluginI18nClasses = pluginClasses.Where(p => p != null).ToArray();
-            if (iPluginI18nClasses.Length == 0)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    SourceGeneratorDiagnostics.CouldNotFindPluginEntryClass,
-                    Location.None
-                ));
-                return null;
-            }
-
-            // If we use dependency injection, we do not need to check if there is a valid plugin context
-            // Also we do not need to return the plugin info
-            if (useDI)
-            {
-                return null;
-            }
-
-            // If p.PropertyName is null, this class does not have PluginInitContext property
-            var iPluginI18nClassesWithContext = iPluginI18nClasses.Where(p => p.PropertyName != null).ToArray();
-            if (iPluginI18nClassesWithContext.Length == 0)
-            {
-                foreach (var pluginClass in iPluginI18nClasses)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.CouldNotFindContextProperty,
-                        pluginClass.Location,
-                        pluginClass.ClassName
-                    ));
-                }
-                return null;
-            }
-
-            // Rest classes have implemented IPluginI18n and have PluginInitContext property
-            // Check if the property is valid
-            foreach (var pluginClass in iPluginI18nClassesWithContext)
-            {
-                if (pluginClass.IsValid == true)
-                {
-                    return pluginClass;
-                }
-
-                if (!pluginClass.IsStatic)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.ContextPropertyNotStatic,
-                        pluginClass.Location,
-                        pluginClass.PropertyName
-                    ));
-                }
-
-                if (pluginClass.IsPrivate)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.ContextPropertyIsPrivate,
-                        pluginClass.Location,
-                        pluginClass.PropertyName
-                    ));
-                }
-
-                if (pluginClass.IsProtected)
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        SourceGeneratorDiagnostics.ContextPropertyIsProtected,
-                        pluginClass.Location,
-                        pluginClass.PropertyName
-                    ));
-                }
-            }
-
-            return null;
-        }
-
-        #endregion
-
         #region Generate Source
 
         private static void GenerateSource(
             SourceProductionContext spc,
             AdditionalText xamlFile,
             ImmutableArray<LocalizableString> localizedStrings,
-            string assemblyName,
+            string assemblyNamespace,
             bool useDI,
             PluginClassInfo pluginInfo,
             IEnumerable<string> usedKeys)
@@ -538,7 +470,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine();
 
             // Generate namespace
-            sourceBuilder.AppendLine($"namespace {assemblyName};");
+            sourceBuilder.AppendLine($"namespace {assemblyNamespace};");
             sourceBuilder.AppendLine();
 
             // Uncomment them for debugging
@@ -572,16 +504,14 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"public static class {Constants.ClassName}");
             sourceBuilder.AppendLine("{");
 
-            var tabString = Spacing(1);
+            var tabString = Helper.Spacing(1);
 
             // Generate API instance
             string getTranslation = null;
             if (useDI)
             {
-                sourceBuilder.AppendLine($"{tabString}private static Flow.Launcher.Plugin.IPublicAPI? api = null;");
-                sourceBuilder.AppendLine($"{tabString}private static Flow.Launcher.Plugin.IPublicAPI Api => api ??= CommunityToolkit.Mvvm.DependencyInjection.Ioc.Default.GetRequiredService<Flow.Launcher.Plugin.IPublicAPI>();");
-                sourceBuilder.AppendLine();
-                getTranslation = "Api.GetTranslation";
+                // Use instance from PublicApiSourceGenerator
+                getTranslation = $"{assemblyNamespace}.{Constants.PublicApiClassName}.{Constants.PublicApiInternalPropertyName}.GetTranslation";
             }
             else if (pluginInfo?.IsValid == true)
             {
@@ -591,14 +521,15 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             // Generate localization methods
             foreach (var ls in localizedStrings)
             {
+                var isLast = ls.Equals(localizedStrings.Last());
                 GenerateDocComments(sourceBuilder, ls, tabString);
-                GenerateLocalizationMethod(sourceBuilder, ls, getTranslation, tabString);
+                GenerateLocalizationMethod(sourceBuilder, ls, getTranslation, tabString, isLast);
             }
 
             sourceBuilder.AppendLine("}");
 
             // Add source to context
-            spc.AddSource($"{Constants.ClassName}.{assemblyName}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
+            spc.AddSource($"{Constants.ClassName}.{assemblyNamespace}.g.cs", SourceText.From(sourceBuilder.ToString(), Encoding.UTF8));
         }
 
         private static void GeneratedHeaderFromPath(StringBuilder sb, string xamlFilePath)
@@ -649,7 +580,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             StringBuilder sb,
             LocalizableString ls,
             string getTranslation,
-            string tabString)
+            string tabString,
+            bool last)
         {
             sb.Append($"{tabString}public static string {ls.Key}(");
 
@@ -674,21 +606,10 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
                 sb.AppendLine("\"LOCALIZATION_ERROR\";");
             }
 
-            sb.AppendLine();
-        }
-
-        private static string Spacing(int n)
-        {
-            Span<char> spaces = stackalloc char[n * 4];
-            spaces.Fill(' ');
-
-            var sb = new StringBuilder(n * 4);
-            foreach (var c in spaces)
+            if (!last)
             {
-                _ = sb.Append(c);
+                sb.AppendLine();
             }
-
-            return sb.ToString();
         }
 
         #endregion

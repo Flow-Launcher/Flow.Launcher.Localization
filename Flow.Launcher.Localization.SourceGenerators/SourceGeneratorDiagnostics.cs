@@ -67,5 +67,14 @@ namespace Flow.Launcher.Localization.SourceGenerators
             DiagnosticSeverity.Warning,
             isEnabledByDefault: true
         );
+
+        public static readonly DiagnosticDescriptor EnumFieldLocalizationKeyValueInvalid = new DiagnosticDescriptor(
+            "FLSG0008",
+            "Enum field localization key and value invalid",
+            $"Enum field `{{0}}` does not have a valid localization key or value",
+            "Localization",
+            DiagnosticSeverity.Warning,
+            isEnabledByDefault: true
+        );
     }
 }

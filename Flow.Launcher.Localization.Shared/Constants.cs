@@ -20,6 +20,14 @@ namespace Flow.Launcher.Localization.Shared
         public const string OldLocalizationMethodName = "GetTranslation";
         public const string StringFormatMethodName = "Format";
         public const string StringFormatTypeName = "string";
+        public const string EnumLocalizeClassSuffix = "Data";
+        public const string EnumLocalizeAttributeName = "EnumLocalizeAttribute";
+        public const string EnumLocalizeKeyAttributeName = "EnumLocalizeKeyAttribute";
+        public const string EnumLocalizeValueAttributeName = "EnumLocalizeValueAttribute";
+        // Use PublicApi instead of PublicAPI for possible ambiguity with Flow.Launcher.Plugin.IPublicAPI
+        public const string PublicApiClassName = "PublicApi";
+        public const string PublicApiPrivatePropertyName = "instance";
+        public const string PublicApiInternalPropertyName = "Instance";
 
         public static readonly Regex LanguagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
         public static readonly string[] OldLocalizationClasses = { "IPublicAPI", "Internationalization" };

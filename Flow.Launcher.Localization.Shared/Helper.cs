@@ -1,9 +1,9 @@
-﻿using Microsoft.CodeAnalysis;
+﻿using System.Linq;
+using System.Threading;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using System.Linq;
-using System.Threading;
 
 namespace Flow.Launcher.Localization.Shared
 {
@@ -78,6 +78,15 @@ namespace Flow.Launcher.Localization.Shared
         private static Location GetCodeFixLocation(PropertyDeclarationSyntax property, SemanticModel semanticModel)
         {
             return semanticModel.GetDeclaredSymbol(property).DeclaringSyntaxReferences[0].GetSyntax().GetLocation();
+        }
+
+        #endregion
+
+        #region Tab String
+
+        public static string Spacing(int n)
+        {
+            return new string(' ', n * 4);
         }
 
         #endregion
