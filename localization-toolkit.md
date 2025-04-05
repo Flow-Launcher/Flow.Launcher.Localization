@@ -40,7 +40,7 @@ And we can also replace `string.Format(Context.API.GetTranslation("flowlauncher_
 
 ### Localized enums
 
-If you have enum types like `DemoEnum` that needs localization in displaying them on a combo box control. You can add `EnumLocalize` attribute to enable localiztion support.
+If you have enum types like `DemoEnum` that needs localization in displaying them on a combo box control. You can add `EnumLocalize` attribute to enable localization support.
 For all fields in this `EnumType`, if you want to specific one localization key for this field, you can use `EnumLocalizeKey` attribute; or if you want to specific one constant value for this field, you can use `EnumLocalizeValue` attribute.
 
 ```
