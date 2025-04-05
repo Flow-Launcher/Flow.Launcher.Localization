@@ -13,8 +13,7 @@ If set to `false`, the `Main` class that implements **[IPlugin](/API-Reference/F
 
 If set to `true`, we can access `IPublicAPI` instance from `PublicApi.Instance` in the project by dependency injection.
 And the `Main` class does not need to have a [PluginInitContext](/API-Reference/Flow.Launcher.Plugin/PluginInitContext.md) property.
-(Not recommended for plugin projects because this will make plugins only compabible with Flow 1.20.0 or higher)
-
+(Not recommended for plugin projects because this will make plugins only compatible with Flow 1.20.0 or higher)
 ## Usage
 
 ### Main class
