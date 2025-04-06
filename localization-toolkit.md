@@ -91,11 +91,11 @@ public enum DemoEnum
 }
 ```
 
-Then, use the generated `DemoEnumLocalize` class within your view model to bind to a combo box control:
+Then, use the generated `DemoEnumLocalized` class within your view model to bind to a combo box control:
 
 ```csharp
 // ComboBox ItemSource
-public List<DemoEnumLocalize> AllDemoEnums { get; } = DemoEnumLocalize.GetValues();
+public List<DemoEnumLocalized> AllDemoEnums { get; } = DemoEnumLocalized.GetValues();
 
 // ComboBox SelectedValue
 public DemoEnum SelectedDemoEnum { get; set; }

@@ -20,6 +20,7 @@ namespace Flow.Launcher.Localization.Shared
         public const string OldLocalizationMethodName = "GetTranslation";
         public const string StringFormatMethodName = "Format";
         public const string StringFormatTypeName = "string";
+        public const string EnumLocalizeClassSuffix = "Localized";
         public const string EnumLocalizeAttributeName = "EnumLocalizeAttribute";
         public const string EnumLocalizeKeyAttributeName = "EnumLocalizeKeyAttribute";
         public const string EnumLocalizeValueAttributeName = "EnumLocalizeValueAttribute";
