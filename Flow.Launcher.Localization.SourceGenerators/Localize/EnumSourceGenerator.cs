@@ -174,7 +174,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             var enumFullName = enumSymbol.ToDisplayString(new SymbolDisplayFormat(
                 globalNamespaceStyle: SymbolDisplayGlobalNamespaceStyle.Omitted, // Remove global:: symbol
                 typeQualificationStyle: SymbolDisplayTypeQualificationStyle.NameAndContainingTypesAndNamespaces));
-            var enumDataClassName = $"{enumSymbol.Name}{Constants.EnumLocalizeClassSuffix}";
+            var enumDataClassName = $"{enumSymbol.Name}{Constants.ClassName}";
             var enumName = enumSymbol.Name;
             var enumNamespace = enumSymbol.ContainingNamespace.ToDisplayString();
             var tabString = Helper.Spacing(1);

@@ -91,11 +91,11 @@ public enum DemoEnum
 }
 ```
 
-Then, use the generated DemoEnumData class within your view model to bind to a combo box:
+Then, use the generated `DemoEnumLocalize` class within your view model to bind to a combo box control:
 
 ```csharp
 // ComboBox ItemSource
-public List<DemoEnumData> AllDemoEnums { get; } = DemoEnumData.GetValues();
+public List<DemoEnumLocalize> AllDemoEnums { get; } = DemoEnumLocalize.GetValues();
 
 // ComboBox SelectedValue
 public DemoEnum SelectedDemoEnum { get; set; }
@@ -114,5 +114,5 @@ In your XAML, bind as follows:
 To update localization strings when the language changes, you can call:
 
 ```csharp
-DemoEnumData.UpdateLabels(AllDemoEnums);
+DemoEnumLocalize.UpdateLabels(AllDemoEnums);
 ```
