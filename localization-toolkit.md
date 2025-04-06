@@ -16,7 +16,7 @@ These are properties you can configure in your `.csproj` file to customize the l
 
 ### `FLLUseDependencyInjection`
 
-This flag specifies whether to use dependency injection to obtain an IPublicAPI instance. The default is `false`.
+This flag specifies whether to use dependency injection to obtain an `IPublicAPI` instance. The default is `false`.
 - If set to `false`, the Main class (which must implement **[IPlugin](/API-Reference/Flow.Launcher.Plugin/IPlugin.md)** or **[IAsyncPlugin](/API-Reference/Flow.Launcher.Plugin/IAsyncPlugin.md)**)
   must have a [PluginInitContext](/API-Reference/Flow.Launcher.Plugin/PluginInitContext.md) property that is at least `internal static`.
 - If set to `true`, you can access the `IPublicAPI` instance via `PublicApi.Instance` using dependency injection, and the Main class does not need to include a [PluginInitContext](/API-Reference/Flow.Launcher.Plugin/PluginInitContext.md) property.
@@ -61,7 +61,7 @@ Localize.flowlauncher_plugin_localization_demo_value_with_keys(firstName, lastNa
 
 ### Localized Enums
 
-For enum types (e.g., DemoEnum) that need localization in UI controls such as combo boxes, use the `EnumLocalize` attribute to enable localization. For each enum field:
+For enum types (e.g., `DemoEnum`) that need localization in UI controls such as combo boxes, use the `EnumLocalize` attribute to enable localization. For each enum field:
 - Use `EnumLocalizeKey` to provide a custom localization key.
 - Use `EnumLocalizeValue` to provide a constant localization string.
 
