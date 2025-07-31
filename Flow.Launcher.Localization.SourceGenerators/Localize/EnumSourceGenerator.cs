@@ -193,6 +193,10 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"namespace {enumNamespace};");
             sourceBuilder.AppendLine();
 
+            // Suppress warning for old localization API usage
+            sourceBuilder.AppendLine(Constants.SuppressWarning);
+            sourceBuilder.AppendLine();
+
             // Generate class
             sourceBuilder.AppendLine($"/// <summary>");
             sourceBuilder.AppendLine($"/// Data class for <see cref=\"{enumFullName}\"/>");

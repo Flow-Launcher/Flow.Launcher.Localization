@@ -473,6 +473,10 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"namespace {assemblyNamespace};");
             sourceBuilder.AppendLine();
 
+            // Suppress warning for old localization API usage
+            sourceBuilder.AppendLine(Constants.SuppressWarning);
+            sourceBuilder.AppendLine();
+
             // Uncomment them for debugging
             //sourceBuilder.AppendLine("/*");
             /*// Generate all localization strings
