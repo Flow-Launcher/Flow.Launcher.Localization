@@ -202,7 +202,7 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"/// Data class for <see cref=\"{enumFullName}\"/>");
             sourceBuilder.AppendLine($"/// </summary>");
             sourceBuilder.AppendLine($"[System.CodeDom.Compiler.GeneratedCode(\"{nameof(EnumSourceGenerator)}\", \"{PackageVersion}\")]");
-            sourceBuilder.AppendLine($"public class {enumDataClassName}");
+            sourceBuilder.AppendLine($"public class {enumDataClassName} : global::System.ComponentModel.INotifyPropertyChanged");
             sourceBuilder.AppendLine("{");
 
             // Generate properties
@@ -212,10 +212,23 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"{tabString}public {enumName} Value {{ get; private init; }}");
             sourceBuilder.AppendLine();
 
+            sourceBuilder.AppendLine($"{tabString}private string _display;");
+            sourceBuilder.AppendLine();
             sourceBuilder.AppendLine($"{tabString}/// <summary>");
             sourceBuilder.AppendLine($"{tabString}/// The display text of the enum value");
             sourceBuilder.AppendLine($"{tabString}/// </summary>");
-            sourceBuilder.AppendLine($"{tabString}public string Display {{ get; set; }}");
+            sourceBuilder.AppendLine($"{tabString}public string Display");
+            sourceBuilder.AppendLine($"{tabString}{{");
+            sourceBuilder.AppendLine($"{tabString}{tabString}get => _display;");
+            sourceBuilder.AppendLine($"{tabString}{tabString}set");
+            sourceBuilder.AppendLine($"{tabString}{tabString}{{");
+            sourceBuilder.AppendLine($"{tabString}{tabString}{tabString}if (_display != value)");
+            sourceBuilder.AppendLine($"{tabString}{tabString}{tabString}{{");
+            sourceBuilder.AppendLine($"{tabString}{tabString}{tabString}{tabString}_display = value;");
+            sourceBuilder.AppendLine($"{tabString}{tabString}{tabString}{tabString}OnPropertyChanged(nameof(Display));");
+            sourceBuilder.AppendLine($"{tabString}{tabString}{tabString}}}");
+            sourceBuilder.AppendLine($"{tabString}{tabString}}}");
+            sourceBuilder.AppendLine($"{tabString}}}");
             sourceBuilder.AppendLine();
 
             sourceBuilder.AppendLine($"{tabString}/// <summary>");
@@ -262,6 +275,16 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
 
             // Generate UpdateLabels method
             GenerateUpdateLabelsMethod(sourceBuilder, getTranslation, enumDataClassName, tabString);
+            sourceBuilder.AppendLine();
+
+            // Generate INotifyPropertyChanged implementation
+            sourceBuilder.AppendLine($"{tabString}/// <inheritdoc />");
+            sourceBuilder.AppendLine($"{tabString}public event global::System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;");
+            sourceBuilder.AppendLine();
+            sourceBuilder.AppendLine($"{tabString}protected void OnPropertyChanged([global::System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)");
+            sourceBuilder.AppendLine($"{tabString}{{");
+            sourceBuilder.AppendLine($"{tabString}{tabString}PropertyChanged?.Invoke(this, new global::System.ComponentModel.PropertyChangedEventArgs(propertyName));");
+            sourceBuilder.AppendLine($"{tabString}}}");
 
             sourceBuilder.AppendLine($"}}");
 
