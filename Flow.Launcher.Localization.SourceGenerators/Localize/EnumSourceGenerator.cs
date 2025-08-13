@@ -185,6 +185,10 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             GeneratedHeaderFromPath(sourceBuilder, enumFullName);
             sourceBuilder.AppendLine();
 
+            // Generate nullable enable
+            sourceBuilder.AppendLine("#nullable enable");
+            sourceBuilder.AppendLine();
+
             // Generate namespace
             sourceBuilder.AppendLine($"namespace {enumNamespace};");
             sourceBuilder.AppendLine();
@@ -208,12 +212,12 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"{tabString}public {enumName} Value {{ get; private init; }}");
             sourceBuilder.AppendLine();
 
-            sourceBuilder.AppendLine($"{tabString}private string _display;");
+            sourceBuilder.AppendLine($"{tabString}private string? _display;");
             sourceBuilder.AppendLine();
             sourceBuilder.AppendLine($"{tabString}/// <summary>");
             sourceBuilder.AppendLine($"{tabString}/// The display text of the enum value");
             sourceBuilder.AppendLine($"{tabString}/// </summary>");
-            sourceBuilder.AppendLine($"{tabString}public string Display");
+            sourceBuilder.AppendLine($"{tabString}public string? Display");
             sourceBuilder.AppendLine($"{tabString}{{");
             sourceBuilder.AppendLine($"{tabString}{tabString}get => _display;");
             sourceBuilder.AppendLine($"{tabString}{tabString}set");
@@ -230,13 +234,13 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             sourceBuilder.AppendLine($"{tabString}/// <summary>");
             sourceBuilder.AppendLine($"{tabString}/// The localization key of the enum value");
             sourceBuilder.AppendLine($"{tabString}/// </summary>");
-            sourceBuilder.AppendLine($"{tabString}public string LocalizationKey {{ get; set; }}");
+            sourceBuilder.AppendLine($"{tabString}public string? LocalizationKey {{ get; set; }}");
             sourceBuilder.AppendLine();
 
             sourceBuilder.AppendLine($"{tabString}/// <summary>");
             sourceBuilder.AppendLine($"{tabString}/// The localization value of the enum value");
             sourceBuilder.AppendLine($"{tabString}/// </summary>");
-            sourceBuilder.AppendLine($"{tabString}public string LocalizationValue {{ get; set; }}");
+            sourceBuilder.AppendLine($"{tabString}public string? LocalizationValue {{ get; set; }}");
             sourceBuilder.AppendLine();
 
             // Generate API instance
