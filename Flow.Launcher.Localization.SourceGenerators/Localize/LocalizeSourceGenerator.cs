@@ -24,7 +24,6 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         private static readonly Version PackageVersion = typeof(LocalizeSourceGenerator).Assembly.GetName().Version;
 
         private static readonly ImmutableArray<LocalizableString> _emptyLocalizableStrings = ImmutableArray<LocalizableString>.Empty;
-        private static readonly ImmutableArray<LocalizableStringParam> _emptyLocalizableStringParams = ImmutableArray<LocalizableStringParam>.Empty;
 
         #endregion
 
@@ -355,7 +354,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
         {
             if (comment == null || comment.Value == null || parameters.Count == 0)
             {
-                return (null, _emptyLocalizableStringParams);
+                // If the comment is not a valid XML, the summary is null and the parameters are not updated
+                return (null, parameters.ToImmutableArray());
             }
 
             try
@@ -385,7 +385,8 @@ namespace Flow.Launcher.Localization.SourceGenerators.Localize
             }
             catch
             {
-                return (null, _emptyLocalizableStringParams);
+                // If the comment is not a valid XML, the summary is null and the parameters are not updated
+                return (null, parameters.ToImmutableArray());
             }
         }
 
