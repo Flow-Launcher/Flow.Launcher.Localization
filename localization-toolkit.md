@@ -59,7 +59,7 @@ To this:
 Localize.flowlauncher_plugin_localization_demo_value_with_keys(firstName, lastName);
 ```
 
-If you would like to add summry for functions of localization strings, you need to comment strings in xaml files like this:
+If you would like to add summary for functions of localization strings, you need to comment strings in xaml files like this:
 ```xml
 <!--
 <summary>Demo plugin name</summary>
