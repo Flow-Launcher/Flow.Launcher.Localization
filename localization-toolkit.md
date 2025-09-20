@@ -59,6 +59,24 @@ To this:
 Localize.flowlauncher_plugin_localization_demo_value_with_keys(firstName, lastName);
 ```
 
+If you would like to add summary for functions of localization strings, you need to comment strings in xaml files like this:
+```xml
+<!--
+<summary>Demo plugin name</summary>
+-->
+<system:String x:Key="flowlauncher_plugin_localization_demo_plugin_name">Demo</system:String>
+```
+
+Or if you would like to change the default types or names of variables in localization strings, you need to comment strings in xaml file like this:
+```xml
+<!--
+<param index="0" name="value0" type="object" />
+<param index="1" name="value1" type="string" />
+<param index="2" name="value2" type="int" />
+-->
+<system:String x:Key="flowlauncher_plugin_localization_demo_value_with_keys">Demo {2:00}, {1,-35:D} and {0}</system:String>
+```
+
 ### Localized Enums
 
 For enum types (e.g., `DemoEnum`) that need localization in UI controls such as combo boxes, use the `EnumLocalize` attribute to enable localization. For each enum field:
