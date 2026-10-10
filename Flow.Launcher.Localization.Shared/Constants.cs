@@ -30,7 +30,7 @@ namespace Flow.Launcher.Localization.Shared
         public const string PublicApiInternalPropertyName = "Instance";
         public const string SuppressWarning = "#pragma warning disable FLAN0001 // Old localization API used";
 
-        public static readonly Regex LanguagesXamlRegex = new Regex(@"\\Languages\\[^\\]+\.xaml$", RegexOptions.IgnoreCase);
+        public static readonly Regex LanguagesXamlRegex = new Regex(@"[\\/]Languages[\\/][^\\/]+\.xaml$", RegexOptions.IgnoreCase);
         public static readonly string[] OldLocalizationClasses = { "IPublicAPI", "Internationalization" };
     }
 }
